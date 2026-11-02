@@ -7,6 +7,8 @@ analyzer:
     missing_return: error
   exclude:
     - "**/*.g.dart"
+    - build/**
+    - web/**
 
 linter:
   rules:

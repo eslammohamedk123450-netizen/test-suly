@@ -4,7 +4,7 @@ import '../../../core/constants/app_strings.dart';
 import '../../../core/navigation/app_nav_item.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
-import '../../chat/presentation/chat_screen.dart';
+import '../../chat/presentation/chat_screen.dart' hide AppRadii;
 import 'home_dashboard.dart';
 import '../../common/under_development_view.dart';
 

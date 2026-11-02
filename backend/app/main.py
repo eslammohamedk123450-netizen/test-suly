@@ -26,6 +26,7 @@ def create_app() -> FastAPI:
             "http://localhost:3000",
             "http://localhost:5000",
             "http://localhost:8080",
+            "https://8080-ic6wnd58xoe1qa175lpwj-ec688b3d.sg2.manus.computer",
         ],
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["Content-Type", "Authorization"],

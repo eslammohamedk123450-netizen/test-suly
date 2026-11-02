@@ -559,8 +559,6 @@ class _InputArea extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasText = controller.text.isNotEmpty;
-
     return Padding(
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Row(
@@ -612,22 +610,26 @@ class _InputArea extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
 
           // Send button
-          Container(
-            decoration: BoxDecoration(
-              color: hasText ? AppColors.primaryGold : AppColors.surfaceSecondary,
-              borderRadius: BorderRadius.circular(AppRadii.lg),
-              border: Border.all(
-                color: hasText
-                    ? AppColors.primaryGold
-                    : AppColors.border,
-              ),
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.send),
-              color: hasText ? AppColors.background : AppColors.textMuted,
-              onPressed: hasText ? onSend : null,
-              tooltip: 'إرسال',
-            ),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (BuildContext context, TextEditingValue value, Widget? child) {
+              final hasText = value.text.trim().isNotEmpty;
+              return Container(
+                decoration: BoxDecoration(
+                  color: hasText ? AppColors.primaryGold : AppColors.surfaceSecondary,
+                  borderRadius: BorderRadius.circular(AppRadii.lg),
+                  border: Border.all(
+                    color: hasText ? AppColors.primaryGold : AppColors.border,
+                  ),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.send),
+                  color: hasText ? AppColors.background : AppColors.textMuted,
+                  onPressed: hasText ? onSend : null,
+                  tooltip: 'إرسال',
+                ),
+              );
+            },
           ),
           const SizedBox(width: AppSpacing.sm),
 

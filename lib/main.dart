@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
-import '../core/theme/app_theme.dart';
-import '../core/routing/app_router.dart';
-import '../core/routing/app_routes.dart';
+import 'core/theme/app_theme.dart';
+import 'core/routing/app_router.dart';
+import 'core/routing/app_routes.dart';
 import 'features/home/presentation/home_screen.dart';
 import 'features/common/module_placeholder_screen.dart';
 

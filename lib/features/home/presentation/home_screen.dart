@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_strings.dart';
 import '../../../core/navigation/app_nav_item.dart';
+import '../../../core/routing/app_routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../chat/presentation/chat_screen.dart' hide AppRadii;
 import 'home_dashboard.dart';
 import '../../common/under_development_view.dart';
+import '../../admin/presentation/admin_screen.dart';
 
 /// Professional responsive application shell for SULY AI.
 class HomeScreen extends StatefulWidget {
@@ -34,6 +36,9 @@ class _HomeScreenState extends State<HomeScreen> {
       return const ChatScreen();
     }
     final item = sulyNavItems[_selectedIndex];
+    if (item.route == AppRoutes.admin) {
+      return const AdminScreen();
+    }
     return UnderDevelopmentView(
       title: item.label,
       icon: item.selectedIcon,
@@ -148,6 +153,7 @@ class _NarrowShell extends StatelessWidget {
     );
   }
 }
+
 class _Sidebar extends StatelessWidget {
   const _Sidebar({
     required this.compact,
@@ -274,9 +280,7 @@ class _SidebarItem extends StatelessWidget {
               children: <Widget>[
                 Icon(
                   selected ? item.selectedIcon : item.icon,
-                  color: selected
-                      ? AppColors.primaryGold
-                      : AppColors.textMuted,
+                  color: selected ? AppColors.primaryGold : AppColors.textMuted,
                   size: 22,
                 ),
                 if (!compact) ...<Widget>[
@@ -382,4 +386,3 @@ class _ProfileArea extends StatelessWidget {
     );
   }
 }
-

@@ -18,6 +18,7 @@ abstract final class AppStrings {
   static const String navStudio = 'Studio';
   static const String navConnectors = 'Connectors';
   static const String navSettings = 'Settings';
+  static const String navAdmin = 'Admin';
 
   // Status
   static const String underDevelopment = 'Under development';

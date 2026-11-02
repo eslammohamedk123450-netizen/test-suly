@@ -8,10 +8,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.api.router import api_router
 from backend.app.core.config import settings
+from backend.app.db.migrate import ensure_schema
+from backend.app.db.session import engine
 
 
 def create_app() -> FastAPI:
     """Build and configure the FastAPI application."""
+    ensure_schema(engine)
     app = FastAPI(
         title=settings.app_name,
         version=settings.app_version,

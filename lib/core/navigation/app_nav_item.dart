@@ -94,6 +94,14 @@ const List<SulyNavItem> sulyNavItems = <SulyNavItem>[
     route: AppRoutes.settings,
     available: false,
   ),
+  SulyNavItem(
+    id: 'admin',
+    icon: Icons.admin_panel_settings_outlined,
+    selectedIcon: Icons.admin_panel_settings,
+    label: AppStrings.navAdmin,
+    route: AppRoutes.admin,
+    available: true,
+  ),
 ];
 
 /// Convenience lookup for the index of a navigation item by id.

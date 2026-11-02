@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../features/chat/presentation/chat_screen.dart';
 import '../../features/common/module_placeholder_screen.dart';
 import '../../features/home/presentation/home_screen.dart';
+import '../../features/admin/presentation/admin_screen.dart';
 import 'app_routes.dart';
 
 /// Minimal router for STEP 01.
@@ -31,9 +32,13 @@ class AppRouter {
       case AppRoutes.studio:
       case AppRoutes.connectors:
       case AppRoutes.settings:
-      case AppRoutes.admin:
         return MaterialPageRoute<void>(
           builder: (_) => ModulePlaceholderScreen(routeName: settings.name!),
+          settings: settings,
+        );
+      case AppRoutes.admin:
+        return MaterialPageRoute<void>(
+          builder: (_) => const AdminScreen(),
           settings: settings,
         );
       default:

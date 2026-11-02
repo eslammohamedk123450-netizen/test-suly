@@ -36,6 +36,7 @@ class CurrentUserResponse(BaseModel):
     email: str
     full_name: Optional[str] = None
     is_active: bool
+    is_admin: bool = False
     created_at: str
 
 

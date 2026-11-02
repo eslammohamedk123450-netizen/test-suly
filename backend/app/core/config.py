@@ -24,11 +24,15 @@ class Settings(BaseSettings):
 
     # Secrets must be provided via environment, never hardcoded.
     secret_key: str | None = None
+    credential_encryption_key: str | None = None
+    admin_bootstrap_token: str | None = None
+    admin_bootstrap_email: str | None = None
 
     api_v1_prefix: str = "/api/v1"
 
     # Authentication settings
     auth_token_expire_seconds: int = 3600
+    admin_token_expire_seconds: int = 1800
     password_hash_algorithm: str = "sha256"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}

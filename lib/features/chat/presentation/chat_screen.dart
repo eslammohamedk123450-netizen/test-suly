@@ -41,6 +41,28 @@ class _ChatScreenState extends State<ChatScreen> {
   final ChatApiService _apiService = ChatApiService();
   String? _sendingConversationId;
 
+  // Agent mode state — belongs to the same chat experience.
+  // Switching modes never creates a new conversation: the conversation id,
+  // messages and context are preserved.
+  bool _agentMode = false;
+  String? _selectedAgentCategory;
+  bool _isSwitchingToAgent = false;
+
+  // Conversation history panel state.
+  bool _conversationCollapsed = false; // desktop sidebar collapse
+  bool _showConversations = false; // mobile slide-over toggle
+
+  /// Available agent tool categories (visual presentation only — not
+  /// implemented in this phase).
+  static const Map<String, IconData> _agentCategories = <String, IconData>{
+    'coding': Icons.code,
+    'research': Icons.search,
+    'browser': Icons.public,
+    'projects': Icons.folder,
+    'studio': Icons.studio,
+    'automation': Icons.autorenew,
+  };
+
   /// The currently active conversation, if any.
   Conversation? get _activeConversation {
     if (_activeConversationIndex == null) return null;
@@ -186,6 +208,42 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
   }
 
+  /// Prepares and performs the Chat → Agent handoff.
+  ///
+  /// The active conversation id, messages and context are preserved — no new
+  /// conversation is created. A clear transition state is shown first so the
+  /// user understands SULY is switching to Agent mode. The actual automatic
+  /// intent detection is not connected yet; this is the clean callback a
+  /// future AI decision can trigger.
+  Future<void> _switchToAgentMode() async {
+    setState(() => _isSwitchingToAgent = true);
+    // Brief, visible transition state so the user understands the switch.
+    await Future.delayed(const Duration(milliseconds: 700));
+    if (!mounted) return;
+    setState(() {
+      _isSwitchingToAgent = false;
+      _agentMode = true;
+      _selectedAgentCategory = null;
+    });
+  }
+
+  /// Returns from Agent mode to normal Chat mode.
+  void _returnToChatMode() {
+    setState(() {
+      _agentMode = false;
+      _selectedAgentCategory = null;
+    });
+  }
+
+  /// Selects (or deselects) an agent tool category. Categories are optional;
+  /// the user can continue without selecting any.
+  void _selectAgentCategory(String categoryId) {
+    setState(() {
+      _selectedAgentCategory =
+          _selectedAgentCategory == categoryId ? null : categoryId;
+    });
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
@@ -222,13 +280,17 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
             Text(
-              _aiConnected
-                  ? 'متصل بالذكاء الاصطناعي'
-                  : 'الخدمة غير متصلة بعد',
+              _agentMode
+                  ? AppStrings.agentActive
+                  : (_aiConnected
+                      ? 'متصل بالذكاء الاصطناعي'
+                      : 'الخدمة غير متصلة بعد'),
               style: theme.textTheme.bodySmall?.copyWith(
-                color: _aiConnected
+                color: _agentMode
                     ? AppColors.primaryGold
-                    : AppColors.textMuted,
+                    : (_aiConnected
+                        ? AppColors.primaryGold
+                        : AppColors.textMuted),
                 fontSize: 11,
               ),
             ),
@@ -245,14 +307,38 @@ class _ChatScreenState extends State<ChatScreen> {
                   setState(() => _showConversations = !_showConversations),
               tooltip: _showConversations ? 'إخفاء المحادثات' : 'إظهار المحادثات',
             ),
+          // Agent mode toggle — clearly accessible next to the chat experience.
           IconButton(
-            icon: const Icon(
-              Icons.smart_toy_outlined,
-              color: AppColors.textMuted,
+            icon: Icon(
+              _agentMode ? Icons.smart_toy : Icons.smart_toy_outlined,
+              color: _agentMode ? AppColors.primaryGold : AppColors.textMuted,
             ),
-            onPressed: null,
-            tooltip: 'اختيار النموذج (قيد التطوير)',
+            onPressed: _isSwitchingToAgent
+                ? null
+                : (_agentMode ? _returnToChatMode : _switchToAgentMode),
+            tooltip: _agentMode
+                ? AppStrings.returnToChat
+                : AppStrings.agentModeTitle,
           ),
+          // Conversation sidebar collapse/expand toggle (desktop).
+          IconButton(
+            icon: Icon(
+              _conversationCollapsed ? Icons.chevron_right : Icons.chevron_left,
+              color: _conversationCollapsed ? AppColors.primaryGold : AppColors.textMuted,
+            ),
+            onPressed: () => setState(() => _conversationCollapsed = !_conversationCollapsed),
+            tooltip: _conversationCollapsed ? 'توسيع القائمة' : 'طي القائمة',
+          ),
+          // Mobile: slide-over conversation panel toggle.
+          if (isMobile)
+            IconButton(
+              icon: Icon(
+                _showConversations ? Icons.close : Icons.list,
+                color: _showConversations ? AppColors.primaryGold : AppColors.textMuted,
+              ),
+              onPressed: () => setState(() => _showConversations = !_showConversations),
+              tooltip: _showConversations ? 'إخفاء المحادثات' : 'إظهار المحادثات',
+            ),
           const SizedBox(width: AppSpacing.sm),
         ],
       ),
@@ -271,13 +357,29 @@ class _ChatScreenState extends State<ChatScreen> {
                         textDirection: textDirection,
                       ),
               ),
-              if (_sendingConversationId == _activeConversation?.id) const _SendingIndicator(),
+              // Visible transition state during the Chat → Agent handoff.
+              if (_isSwitchingToAgent) _AgentTransitionBanner(),
+              // Agent category selector — shown only in Agent mode. Categories
+              // are optional; the user may continue without selecting any.
+              if (_agentMode) _AgentCategorySelector(
+                selected: _selectedAgentCategory,
+                onSelect: _selectAgentCategory,
+                onContinueWithout: () {
+                  setState(() => _selectedAgentCategory = null);
+                },
+              ),
+              if (_sendingConversationId == _activeConversation?.id)
+                const _SendingIndicator(),
               const Divider(height: 1, color: AppColors.border),
               _InputArea(
                 controller: _controller,
                 onSend: _sendMessage,
                 onAttach: () {},
                 onNewConversation: _startNewConversation,
+                onAgentToggle: _agentMode
+                    ? _returnToChatMode
+                    : _switchToAgentMode,
+                agentMode: _agentMode,
                 theme: theme,
                 isMobile: isMobile,
               ),
@@ -285,13 +387,13 @@ class _ChatScreenState extends State<ChatScreen> {
           );
 
           if (isWide) {
-            // Desktop: persistent conversation list on the right (RTL).
+            // Desktop: collapsible conversation list with wide chat area.
             return Row(
               children: <Widget>[
+                // Conversation sidebar — collapsible.
                 Expanded(
-                  flex: 0,
+                  flex: _conversationCollapsed ? 0 : 1,
                   child: Container(
-                    width: 280,
                     color: AppColors.surface,
                     child: _ConversationList(
                       conversations: _conversations,
@@ -300,10 +402,12 @@ class _ChatScreenState extends State<ChatScreen> {
                       onDelete: _deleteConversation,
                       textDirection: textDirection,
                     ),
+                    width: _conversationCollapsed ? 0 : 280,
                   ),
                 ),
-                const VerticalDivider(width: 1, color: AppColors.border),
-                Expanded(flex: 3, child: chatColumn),
+                if (!_conversationCollapsed)
+                  const VerticalDivider(width: 1, color: AppColors.border),
+                Expanded(flex: _conversationCollapsed ? 3 : 2, child: chatColumn),
               ],
             );
           }
@@ -546,6 +650,8 @@ class _InputArea extends StatelessWidget {
     required this.onSend,
     required this.onAttach,
     required this.onNewConversation,
+    required this.onAgentToggle,
+    required this.agentMode,
     required this.theme,
     required this.isMobile,
   });
@@ -554,6 +660,8 @@ class _InputArea extends StatelessWidget {
   final VoidCallback onSend;
   final VoidCallback onAttach;
   final VoidCallback onNewConversation;
+  final VoidCallback onAgentToggle;
+  final bool agentMode;
   final ThemeData theme;
   final bool isMobile;
 
@@ -640,6 +748,20 @@ class _InputArea extends StatelessWidget {
             tooltip: 'محادثة جديدة',
             isPrimary: true,
           ),
+          const SizedBox(width: AppSpacing.sm),
+
+          // Agent mode toggle — next to the composer.
+          _IconButton(
+            icon: Icon(
+              agentMode ? Icons.smart_toy : Icons.smart_toy_outlined,
+              color: agentMode ? AppColors.primaryGold : AppColors.textMuted,
+            ),
+            onPressed: onAgentToggle,
+            tooltip: agentMode
+                ? AppStrings.returnToChat
+                : AppStrings.agentModeTitle,
+            isPrimary: agentMode,
+          ),
         ],
       ),
     );
@@ -672,6 +794,184 @@ class _SendingIndicator extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Visible banner shown while SULY switches from Chat to Agent mode.
+class _AgentTransitionBanner extends StatelessWidget {
+  const _AgentTransitionBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      child: Row(
+        children: <Widget>[
+          const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              AppStrings.switchingToAgent,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: AppColors.primaryGold,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Optional agent tool category selector shown only in Agent mode.
+///
+/// Categories are purely visual in this phase. The user may select one or
+/// continue without selecting any category.
+class _AgentCategorySelector extends StatelessWidget {
+  const _AgentCategorySelector({
+    required this.selected,
+    required this.onSelect,
+    required this.onContinueWithout,
+  });
+
+  final String? selected;
+  final ValueChanged<String> onSelect;
+  final VoidCallback onContinueWithout;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: Text(
+              AppStrings.availableToolCategories,
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: AppColors.textMuted,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: _ChatScreenState._agentCategories.entries.map((entry) {
+              final id = entry.key;
+              final icon = entry.value;
+              final isSelected = selected == id;
+              return _AgentCategoryChip(
+                icon: icon,
+                label: _categoryLabel(id),
+                selected: isSelected,
+                onTap: () => onSelect(id),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _AgentCategoryChip(
+            icon: Icons.close,
+            label: AppStrings.continueWithoutCategory,
+            selected: selected == null,
+            onTap: onContinueWithout,
+            isOutline: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _categoryLabel(String id) {
+    switch (id) {
+      case 'coding':
+        return AppStrings.catCoding;
+      case 'research':
+        return AppStrings.catResearch;
+      case 'browser':
+        return AppStrings.catBrowser;
+      case 'projects':
+        return AppStrings.catProjects;
+      case 'studio':
+        return AppStrings.catStudio;
+      case 'automation':
+        return AppStrings.catAutomation;
+      default:
+        return id;
+    }
+  }
+}
+
+/// Single selectable agent category chip.
+class _AgentCategoryChip extends StatelessWidget {
+  const _AgentCategoryChip({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.isOutline = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final bool isOutline;
+
+  @override
+  Widget build(BuildContext context) {
+    final active = selected && !isOutline;
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadii.lg),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
+        decoration: BoxDecoration(
+          color: active ? AppColors.primaryGold : AppColors.surfaceSecondary,
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+          border: Border.all(
+            color: active
+                ? AppColors.primaryGold
+                : (isOutline ? AppColors.border : AppColors.border),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(
+              icon,
+              color: active ? AppColors.background : AppColors.textMuted,
+              size: 18,
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: active
+                        ? AppColors.background
+                        : AppColors.text,
+                    fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                  ),
+            ),
+          ],
+        ),
       ),
     );
   }

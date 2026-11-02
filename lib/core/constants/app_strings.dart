@@ -47,4 +47,22 @@ abstract final class AppStrings {
   static const String capResearch = 'Research';
   static const String capProjects = 'Projects';
   static const String capStudio = 'Studio';
+
+  // Agent mode
+  static const String agentModeTitle = 'نمط الوكيل';
+  static const String normalChatMode = 'الدردشة العادية';
+  static const String returnToChat = 'العودة إلى الدردشة';
+  static const String agentActive = 'الوكيل نشط';
+  static const String selectToolCategory = 'اختر فئة أداة (اختياري)';
+  static const String continueWithoutCategory = 'المتابعة دون اختيار فئة';
+  static const String switchingToAgent = 'جاري التحويل إلى نمط الوكيل...';
+  static const String availableToolCategories = 'الفئات المتاحة للأدوات';
+
+  // Agent categories (visual presentation only — not implemented in this phase)
+  static const String catCoding = 'التطوير';
+  static const String catResearch = 'البحث';
+  static const String catBrowser = 'المتصفح';
+  static const String catProjects = 'المشاريع';
+  static const String catStudio = 'الأستوديو';
+  static const String catAutomation = 'الأتمتة';
 }

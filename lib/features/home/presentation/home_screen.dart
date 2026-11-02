@@ -17,11 +17,19 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0;
+  // Chat is the primary experience: the app opens directly into ChatScreen.
+  int _selectedIndex = sulyNavIndex('new_chat');
+
+  // Sidebar collapse state (desktop only).
+  bool _sidebarCollapsed = false;
 
   void _onSelected(int index) {
     if (index < 0 || index >= sulyNavItems.length) return;
     setState(() => _selectedIndex = index);
+  }
+
+  void _toggleSidebar() {
+    setState(() => _sidebarCollapsed = !_sidebarCollapsed);
   }
 
   void _startConversation() => _onSelected(sulyNavIndex('new_chat'));
@@ -51,7 +59,8 @@ class _HomeScreenState extends State<HomeScreen> {
         final content = _buildContent();
         if (width >= 900) {
           return _AppShell(
-            compact: false,
+            collapsed: _sidebarCollapsed,
+            onToggleCollapse: _toggleSidebar,
             selectedIndex: _selectedIndex,
             onSelected: _onSelected,
             content: content,
@@ -59,7 +68,8 @@ class _HomeScreenState extends State<HomeScreen> {
         }
         if (width >= 600) {
           return _AppShell(
-            compact: true,
+            collapsed: _sidebarCollapsed,
+            onToggleCollapse: _toggleSidebar,
             selectedIndex: _selectedIndex,
             onSelected: _onSelected,
             content: content,
@@ -78,158 +88,149 @@ class _HomeScreenState extends State<HomeScreen> {
 /// Persistent sidebar shell for medium/wide viewports.
 class _AppShell extends StatelessWidget {
   const _AppShell({
-    required this.compact,
+    required this.collapsed,
+    required this.onToggleCollapse,
     required this.selectedIndex,
     required this.onSelected,
     required this.content,
   });
 
-  final bool compact;
+  final bool collapsed;
+  final VoidCallback onToggleCollapse;
   final int selectedIndex;
   final ValueChanged<int> onSelected;
   final Widget content;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Row(
         children: <Widget>[
           _Sidebar(
-            compact: compact,
+            collapsed: collapsed,
+            onToggleCollapse: onToggleCollapse,
             selectedIndex: selectedIndex,
             onSelected: onSelected,
           ),
-          const VerticalDivider(width: 1, color: AppColors.border),
+          // Collapsed sidebar: no divider, width freed to chat.
+          if (!collapsed)
+            const VerticalDivider(width: 1, color: AppColors.border),
           Expanded(child: content),
         ],
       ),
     );
   }
 }
-
-/// Drawer-based shell for narrow viewports.
-class _NarrowShell extends StatelessWidget {
-  const _NarrowShell({
-    required this.selectedIndex,
-    required this.onSelected,
-    required this.content,
-  });
-
-  final int selectedIndex;
-  final ValueChanged<int> onSelected;
-  final Widget content;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(AppStrings.appName),
-        leading: Builder(
-          builder: (BuildContext context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-            tooltip: MaterialLocalizations.of(context).openAppDrawerTooltip,
-          ),
-        ),
-      ),
-      drawer: Drawer(
-        child: _Sidebar(
-          compact: false,
-          selectedIndex: selectedIndex,
-          onSelected: (int index) {
-            Navigator.of(context).pop();
-            onSelected(index);
-          },
-        ),
-      ),
-      body: content,
-    );
-  }
-}
 class _Sidebar extends StatelessWidget {
   const _Sidebar({
-    required this.compact,
+    required this.collapsed,
+    required this.onToggleCollapse,
     required this.selectedIndex,
     required this.onSelected,
   });
 
-  final bool compact;
+  final bool collapsed;
+  final VoidCallback onToggleCollapse;
   final int selectedIndex;
   final ValueChanged<int> onSelected;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Container(
-      width: compact ? AppSizes.sidebarCompactWidth : AppSizes.sidebarWidth,
+      width: collapsed ? AppSizes.sidebarCompactWidth : AppSizes.sidebarWidth,
       color: AppColors.surface,
       child: Column(
         children: <Widget>[
-          _SidebarHeader(compact: compact),
+          // Brand header + collapse toggle.
+          Container(
+            padding: EdgeInsets.all(collapsed ? AppSpacing.sm : AppSpacing.md),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceSecondary,
+              borderRadius: BorderRadius.vertical(
+                top: Radius.circular(AppRadii.lg),
+              ),
+            ),
+            child: Row(
+              children: <Widget>[
+                const Icon(
+                  Icons.auto_awesome,
+                  color: AppColors.primaryGold,
+                  size: 24,
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                if (!collapsed)
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(
+                          AppStrings.appName,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            color: AppColors.text,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        Text(
+                          AppStrings.navChat,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                IconButton(
+                  icon: Icon(
+                    collapsed
+                        ? Icons.chevron_right
+                        : Icons.chevron_left,
+                    color: AppColors.textMuted,
+                  ),
+                  onPressed: onToggleCollapse,
+                  tooltip: collapsed
+                      ? 'توسيع القائمة'
+                      : 'طي القائمة',
+                ),
+              ],
+            ),
+          ),
           const Divider(height: 1, color: AppColors.border),
+          // Navigation list (icons only when collapsed).
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: AppSpacing.xs,
+              ),
               itemCount: sulyNavItems.length,
+              separatorBuilder: (BuildContext context, int index) =>
+                  const Divider(height: 1, color: AppColors.border),
               itemBuilder: (BuildContext context, int index) {
                 final item = sulyNavItems[index];
+                final selected = selectedIndex == index;
                 return _SidebarItem(
                   item: item,
-                  selected: index == selectedIndex,
-                  compact: compact,
+                  selected: selected,
+                  compact: collapsed,
                   onTap: () => onSelected(index),
                 );
               },
             ),
           ),
-          const Divider(height: 1, color: AppColors.border),
-          _ProfileArea(compact: compact),
-        ],
-      ),
-    );
-  }
-}
-
-class _SidebarHeader extends StatelessWidget {
-  const _SidebarHeader({required this.compact});
-
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Padding(
-      padding: EdgeInsets.all(compact ? AppSpacing.sm : AppSpacing.lg),
-      child: Row(
-        children: <Widget>[
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: AppColors.primaryGold.withOpacity(0.16),
-              borderRadius: BorderRadius.circular(AppRadii.md),
-              border: Border.all(color: AppColors.primaryGold),
-            ),
-            child: const Icon(
-              Icons.auto_awesome,
-              color: AppColors.primaryGold,
-              size: 20,
-            ),
+          // New chat button.
+          _IconButton(
+            icon: Icons.add_circle_outline,
+            onPressed: () => onSelected(sulyNavIndex('new_chat')),
+            tooltip: 'محادثة جديدة',
+            isPrimary: true,
           ),
-          if (!compact) ...<Widget>[
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text(
-                AppStrings.appName,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: AppColors.primaryGold,
-                  fontWeight: FontWeight.w800,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
+          // Profile area (desktop only).
+          if (!collapsed) _ProfileArea(compact: collapsed),
         ],
       ),
     );
@@ -379,6 +380,46 @@ class _ProfileArea extends StatelessWidget {
           ],
         ],
       ),
+    );
+  }
+}
+class _NarrowShell extends StatelessWidget {
+  const _NarrowShell({
+    required this.selectedIndex,
+    required this.onSelected,
+    required this.content,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+  final Widget content;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: Text(AppStrings.appName),
+        leading: Builder(
+          builder: (BuildContext context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+            tooltip: MaterialLocalizations.of(context).openAppDrawerTooltip,
+          ),
+        ),
+      ),
+      drawer: Drawer(
+        child: _Sidebar(
+          collapsed: false,
+          onToggleCollapse: () {},
+          selectedIndex: selectedIndex,
+          onSelected: (int index) {
+            Navigator.of(context).pop();
+            onSelected(index);
+          },
+        ),
+      ),
+      body: content,
     );
   }
 }

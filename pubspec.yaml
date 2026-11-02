@@ -1,0 +1,17 @@
+name: suly_ai
+description: SULY AI - foundational Flutter web application shell.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  http: ^1.2.2
+
+flutter:
+  uses-material-design: true

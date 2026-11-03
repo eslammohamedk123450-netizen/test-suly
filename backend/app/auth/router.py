@@ -4,9 +4,10 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from backend.app.auth.schemas import CurrentUserResponse, LoginRequest, RegisterRequest, TokenResponse
-from backend.app.auth.service import AuthService, generate_token, verify_token
+from backend.app.auth.service import AuthService, decode_token, generate_token, token_identifier, verify_token
 from backend.app.core.config import settings
 from backend.app.db.models.user import User
+from backend.app.db.models.admin import RevokedToken
 from backend.app.db.session import get_db
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -23,6 +24,10 @@ def get_current_user_record(db: Session = Depends(get_db), token: str | None = D
     user_id = verify_token(token)
     if user_id is None:
         raise HTTPException(status_code=401, detail="Invalid or expired token", headers={"WWW-Authenticate": "Bearer"})
+    payload = decode_token(token)
+    token_id = token_identifier(token, payload) if payload else None
+    if token_id and db.query(RevokedToken).filter(RevokedToken.token_id == token_id).first():
+        raise HTTPException(status_code=401, detail="Token has been revoked", headers={"WWW-Authenticate": "Bearer"})
     try:
         return AuthService(db).get_current_user(user_id)
     except ValueError as exc:
@@ -98,6 +103,11 @@ def me(current_user: CurrentUserResponse = Depends(get_current_user)) -> Current
 
 
 @router.post("/logout")
-def logout(current: User = Depends(get_current_user_record)) -> dict:
-    AuthService(None).logout(current.id)  # type: ignore[arg-type]
-    return {"message": "Logged out successfully; token will expire shortly"}
+def logout(
+    current: User = Depends(get_current_user_record),
+    db: Session = Depends(get_db),
+    token: str | None = Depends(oauth2_scheme),
+) -> dict:
+    if not token or not AuthService(db).logout(current.id, token):
+        raise HTTPException(status_code=401, detail="The current token could not be revoked")
+    return {"message": "Logged out successfully; token has been revoked"}

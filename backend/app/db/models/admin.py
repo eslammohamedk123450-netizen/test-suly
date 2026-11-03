@@ -110,3 +110,13 @@ class AuditLog(Base):
     target_id: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
     safe_metadata_json: Mapped[str] = mapped_column(Text, default="{}")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class RevokedToken(Base):
+    """JWT identifiers revoked by logout; rows expire with their access token."""
+
+    __tablename__ = "revoked_tokens"
+
+    token_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

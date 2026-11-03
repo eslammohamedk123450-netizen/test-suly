@@ -117,13 +117,30 @@ When SQLAlchemy and Alembic are installed:
 
 ## Important notices
 
-- **No database connection has been tested.** Dependencies are not installed in this environment.
-- **No database tables have been created.** Alembic migrations have not been generated.
-- **No authentication is implemented.** The `User` model is a data model only.
+- The application initializes the current SQLAlchemy schema at startup; use versioned migrations before production schema evolution.
+- Authentication and an admin API exist, but production secrets and an AI provider must be configured by the operator. Logout revokes the current signed access token server-side until expiry.
 
 ## Scope
 
-This step only establishes the database foundation. Authentication, subscriptions,
-credits, payments, agents, chat messages, connectors, and admin modules are
-intentionally not implemented here.
+Payments, provider-specific protocols other than OpenAI-compatible chat, advanced agents, and persistent chat history are not implemented yet.
 
+## AI chat provider configuration
+
+`POST /api/v1/chat/` now sends the message and up to 40 prior user/assistant turns to the first enabled model/provider. The admin UI includes presets for `openrouter`, `deepseek`, `groq`, `openai`, and `google_ai_studio`; each uses the OpenAI-compatible `chat/completions` protocol and can be customized with a different HTTPS base URL. Enter the secret only in the masked admin form, use a unique connection name for each key, and supply a model identifier recognized by that provider. The server encrypts stored keys; it never returns the complete key. HTTP is accepted only for loopback development URLs.
+
+Chat requests require an active user Bearer token. Flutter offers sign-in/registration when the user sends the first chat message and keeps the short-lived token in memory only. **Before public production, add per-user rate limits and enforce credit/usage quotas:** the current chat endpoint authenticates users but does not yet deduct credits or cap requests.
+
+Check each provider's official reference for current model identifiers and feature support: [OpenRouter](https://openrouter.ai/docs/api_reference/overview), [DeepSeek](https://api-docs.deepseek.com/api/create-chat-completion/), [Groq](https://console.groq.com/docs/openai), [OpenAI](https://platform.openai.com/api-reference/resources/chat/subresources/completions/methods/create), and [Google AI Studio](https://ai.google.dev/gemini-api/docs/openai). Google documents its OpenAI compatibility as beta; Groq implements partial compatibility.
+
+Set `CORS_ALLOWED_ORIGINS` as a JSON array of exact origins in `.env` or the hosting environment (for example `CORS_ALLOWED_ORIGINS=["https://app.example.com"]`). The default list is for local development only. CORS now includes the `PUT` and `PATCH` methods required by admin operations; credentials remain disabled because API authentication uses Bearer tokens.
+
+Before starting the backend, copy the root `.env.example` to `.env` and set unique values for `SECRET_KEY`, `CREDENTIAL_ENCRYPTION_KEY`, and (when bootstrapping the first admin) `ADMIN_BOOTSTRAP_TOKEN`. Generate them locally, for example:
+
+```sh
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+The encryption key must remain stable: replacing it makes previously stored provider keys unreadable. Do not put provider API keys in Flutter or commit `.env`. Provider calls include bounded recent conversation history; unsupported protocols return HTTP 503 instead of a mock answer.
+
+Run backend tests with `pip install -r backend/requirements-dev.txt` followed by `PYTHONPATH=. pytest backend/tests` from the repository root. The current test suite passes 8 tests.

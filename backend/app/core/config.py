@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     admin_bootstrap_token: str | None = None
     admin_bootstrap_email: str | None = None
 
+    # JSON array from CORS_ALLOWED_ORIGINS; configure production origins explicitly.
+    cors_allowed_origins: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:5000",
+        "http://localhost:8080",
+    ]
+
     api_v1_prefix: str = "/api/v1"
 
     # Authentication settings

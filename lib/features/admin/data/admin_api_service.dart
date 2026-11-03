@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../../../core/config/api_config.dart';
@@ -19,7 +20,17 @@ class AdminApiService {
         if (token != null) 'Authorization': 'Bearer $token',
       };
 
+  void _assertSecureTransport() {
+    final uri = Uri.tryParse(ApiConfig.baseUrl);
+    if (kReleaseMode && (uri == null || uri.scheme != 'https')) {
+      throw const AdminApiException(
+        'يجب ضبط عنوان Backend على HTTPS قبل استخدام لوحة الإدارة في إصدار الإنتاج.',
+      );
+    }
+  }
+
   Future<void> login(String email, String password) async {
+    _assertSecureTransport();
     final response = await http.post(
       Uri.parse('${ApiConfig.baseUrl}/api/v1/auth/admin/login'),
       headers: const {'Content-Type': 'application/json'},
@@ -42,7 +53,29 @@ class AdminApiService {
       _getMap('/api/v1/admin/settings');
   Future<List<dynamic>> getAudit() => _getList('/api/v1/admin/audit');
 
+  Future<Map<String, dynamic>> createProvider(Map<String, dynamic> provider) async {
+    _assertSecureTransport();
+    final response = await http.post(
+      Uri.parse('${ApiConfig.baseUrl}/api/v1/admin/providers'),
+      headers: _headers,
+      body: jsonEncode(provider),
+    );
+    _ensureOk(response);
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<void> createModel(Map<String, dynamic> model) async {
+    _assertSecureTransport();
+    final response = await http.post(
+      Uri.parse('${ApiConfig.baseUrl}/api/v1/admin/models'),
+      headers: _headers,
+      body: jsonEncode(model),
+    );
+    _ensureOk(response);
+  }
+
   Future<Map<String, dynamic>> _getMap(String path) async {
+    _assertSecureTransport();
     final response = await http.get(Uri.parse('${ApiConfig.baseUrl}$path'),
         headers: _headers);
     _ensureOk(response);
@@ -50,6 +83,7 @@ class AdminApiService {
   }
 
   Future<List<dynamic>> _getList(String path) async {
+    _assertSecureTransport();
     final response = await http.get(Uri.parse('${ApiConfig.baseUrl}$path'),
         headers: _headers);
     _ensureOk(response);

@@ -3,12 +3,13 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../auth/presentation/auth_gate_dialog.dart';
 import '../data/chat_api_service.dart';
 
 /// Professional AI chat interface for SULY AI.
 ///
 /// A minimal, premium dark UI with midnight gold accents.
-/// No fake AI responses — clearly indicates the AI service is not connected.
+/// Replies come from the configured backend provider; no mock answer is shown.
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
 
@@ -34,7 +35,6 @@ class Conversation {
 class _ChatScreenState extends State<ChatScreen> {
   final List<Conversation> _conversations = [];
   int? _activeConversationIndex;
-  bool _showConversations = false;
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _aiConnected = false;
@@ -110,7 +110,20 @@ class _ChatScreenState extends State<ChatScreen> {
     // لا تسمح بإرسال طلب آخر من نفس المحادثة أثناء وجود طلب جارٍ.
     if (_sendingConversationId == active.id) return;
 
+    final authenticated = await ensureUserSession(context);
+    if (!mounted || !authenticated) return;
+
     final sendingConversationId = active.id;
+    final historyStart = active.messages.length > 40
+        ? active.messages.length - 40
+        : 0;
+    final history = active.messages
+        .skip(historyStart)
+        .map((message) => <String, String>{
+              'role': message.isUser ? 'user' : 'assistant',
+              'content': message.text,
+            })
+        .toList(growable: false);
 
     setState(() {
       active.messages.add(ChatMessage(
@@ -123,31 +136,37 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     _scrollToBottom();
 
-    final result = await _apiService.sendMessage(text);
+    final result = await _apiService.sendMessage(text, history: history);
 
     if (!mounted) return;
 
     // ابحث عن المحادثة بالمعرف، لا تعتمد على الفهرس النشط الحالي.
-    final targetIndex = _conversations.indexWhere((c) => c.id == sendingConversationId);
+    final targetIndex =
+        _conversations.indexWhere((c) => c.id == sendingConversationId);
     if (targetIndex == -1) {
         // المحادثة حُذفت، تجاهل الرد.
         if (_sendingConversationId == sendingConversationId) {
-          _sendingConversationId = null;
+          setState(() => _sendingConversationId = null);
         }
         return;
     }
 
-    // لا让 انتهاء طلب قديم يغيّر حالة انتظار طلب أحدث.
-    if (_sendingConversationId == sendingConversationId) {
-      _sendingConversationId = null;
-    }
+    // لا تسمح لطلب قديم بتغيير حالة طلب أحدث.
+    setState(() {
+      if (_sendingConversationId == sendingConversationId) {
+        _sendingConversationId = null;
+      }
+      if (result.success && result.reply != null) {
+        _conversations[targetIndex].messages.add(ChatMessage(
+          text: result.reply!,
+          isUser: false,
+          timestamp: DateTime.now(),
+        ));
+        _aiConnected = result.providerConnected;
+      }
+    });
 
     if (result.success && result.reply != null) {
-      _conversations[targetIndex].messages.add(ChatMessage(
-        text: result.reply!,
-        isUser: false,
-        timestamp: DateTime.now(),
-      ));
       // تمرير إلى الأسفل فقط إذا كانت المحادثة الهدف هي النشطة حاليًا.
       if (_activeConversationIndex == targetIndex) {
         _scrollToBottom();
@@ -268,32 +287,19 @@ class _ChatScreenState extends State<ChatScreen> {
         backgroundColor: AppColors.surface,
         elevation: 0,
         titleSpacing: AppSpacing.sm,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        centerTitle: true,
+        title: Row(
           mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
+          children: [
             Text(
               AppStrings.appName,
               style: theme.textTheme.titleMedium?.copyWith(
-                color: AppColors.primaryGold,
-                fontWeight: FontWeight.w800,
+                color: AppColors.text,
+                fontWeight: FontWeight.w600,
               ),
             ),
-            Text(
-              _agentMode
-                  ? AppStrings.agentActive
-                  : (_aiConnected
-                      ? 'متصل بالذكاء الاصطناعي'
-                      : 'الخدمة غير متصلة بعد'),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: _agentMode
-                    ? AppColors.primaryGold
-                    : (_aiConnected
-                        ? AppColors.primaryGold
-                        : AppColors.textMuted),
-                fontSize: 11,
-              ),
-            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.expand_more, color: AppColors.textMuted, size: 20),
           ],
         ),
         actions: <Widget>[
@@ -321,23 +327,14 @@ class _ChatScreenState extends State<ChatScreen> {
                 : AppStrings.agentModeTitle,
           ),
           // Conversation sidebar collapse/expand toggle (desktop).
-          IconButton(
-            icon: Icon(
-              _conversationCollapsed ? Icons.chevron_right : Icons.chevron_left,
-              color: _conversationCollapsed ? AppColors.primaryGold : AppColors.textMuted,
-            ),
-            onPressed: () => setState(() => _conversationCollapsed = !_conversationCollapsed),
-            tooltip: _conversationCollapsed ? 'توسيع القائمة' : 'طي القائمة',
-          ),
-          // Mobile: slide-over conversation panel toggle.
-          if (isMobile)
+          if (!isMobile)
             IconButton(
               icon: Icon(
-                _showConversations ? Icons.close : Icons.list,
-                color: _showConversations ? AppColors.primaryGold : AppColors.textMuted,
+                _conversationCollapsed ? Icons.chevron_right : Icons.chevron_left,
+                color: _conversationCollapsed ? AppColors.primaryGold : AppColors.textMuted,
               ),
-              onPressed: () => setState(() => _showConversations = !_showConversations),
-              tooltip: _showConversations ? 'إخفاء المحادثات' : 'إظهار المحادثات',
+              onPressed: () => setState(() => _conversationCollapsed = !_conversationCollapsed),
+              tooltip: _conversationCollapsed ? 'توسيع القائمة' : 'طي القائمة',
             ),
           const SizedBox(width: AppSpacing.sm),
         ],
@@ -668,101 +665,56 @@ class _InputArea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(AppSpacing.md),
-      child: Row(
-        children: <Widget>[
-          // Attach file (UI only)
-          _IconButton(
-            icon: Icons.attach_file,
-            onPressed: onAttach,
-            tooltip: 'إرفاق ملف',
-          ),
-          const SizedBox(width: AppSpacing.sm),
-
-          // Multi-line text field
-          Expanded(
-            child: TextField(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
               controller: controller,
               minLines: 1,
-              maxLines: 5,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppColors.text,
-              ),
+              maxLines: 4,
+              style: theme.textTheme.bodyMedium?.copyWith(color: AppColors.text),
               decoration: InputDecoration(
-                hintText: 'اكتب رسالتك هنا...',
-                hintStyle: theme.textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textMuted,
-                ),
-                filled: true,
-                fillColor: AppColors.surfaceSecondary,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadii.lg),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadii.lg),
-                  borderSide: const BorderSide(color: AppColors.border),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadii.lg),
-                  borderSide: const BorderSide(color: AppColors.primaryGold),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: AppSpacing.md,
-                  vertical: AppSpacing.sm,
-                ),
+                hintText: 'اسأل أي شيء أو اكتب مهمة...',
+                hintStyle: theme.textTheme.bodyMedium?.copyWith(color: AppColors.textMuted),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
               ),
-              onChanged: (_) {},
+              textInputAction: TextInputAction.newline,
             ),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-
-          // Send button
-          ValueListenableBuilder<TextEditingValue>(
-            valueListenable: controller,
-            builder: (BuildContext context, TextEditingValue value, Widget? child) {
-              final hasText = value.text.trim().isNotEmpty;
-              return Container(
-                decoration: BoxDecoration(
-                  color: hasText ? AppColors.primaryGold : AppColors.surfaceSecondary,
-                  borderRadius: BorderRadius.circular(AppRadii.lg),
-                  border: Border.all(
-                    color: hasText ? AppColors.primaryGold : AppColors.border,
-                  ),
+            Row(
+              children: [
+                IconButton(onPressed: onAttach, tooltip: 'إرفاق ملف', icon: const Icon(Icons.add)),
+                IconButton(onPressed: null, tooltip: 'الصوت قريبًا', icon: const Icon(Icons.mic_none)),
+                IconButton(
+                  onPressed: onAgentToggle,
+                  tooltip: agentMode ? AppStrings.returnToChat : AppStrings.agentModeTitle,
+                  icon: Icon(agentMode ? Icons.smart_toy : Icons.smart_toy_outlined),
                 ),
-                child: IconButton(
-                  icon: const Icon(Icons.send),
-                  color: hasText ? AppColors.background : AppColors.textMuted,
-                  onPressed: hasText ? onSend : null,
-                  tooltip: 'إرسال',
+                IconButton(onPressed: onNewConversation, tooltip: 'محادثة جديدة', icon: const Icon(Icons.chat_bubble_outline)),
+                const Spacer(),
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: controller,
+                  builder: (context, value, _) {
+                    final hasText = value.text.trim().isNotEmpty;
+                    return IconButton.filled(
+                      onPressed: hasText ? onSend : null,
+                      tooltip: 'إرسال',
+                      icon: const Icon(Icons.arrow_upward),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
-          const SizedBox(width: AppSpacing.sm),
-
-          // New conversation button
-          _IconButton(
-            icon: Icons.add_circle_outline,
-            onPressed: onNewConversation,
-            tooltip: 'محادثة جديدة',
-            isPrimary: true,
-          ),
-          const SizedBox(width: AppSpacing.sm),
-
-          // Agent mode toggle — next to the composer.
-          _IconButton(
-            icon: Icon(
-              agentMode ? Icons.smart_toy : Icons.smart_toy_outlined,
-              color: agentMode ? AppColors.primaryGold : AppColors.textMuted,
+              ],
             ),
-            onPressed: onAgentToggle,
-            tooltip: agentMode
-                ? AppStrings.returnToChat
-                : AppStrings.agentModeTitle,
-            isPrimary: agentMode,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

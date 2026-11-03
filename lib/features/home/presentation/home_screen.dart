@@ -19,8 +19,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Chat is the primary experience: the app opens directly into ChatScreen.
-  int _selectedIndex = sulyNavIndex('new_chat');
+  // Open on the task-oriented home screen, matching the supplied reference.
+  int _selectedIndex = sulyNavIndex('home');
 
   // Sidebar collapse state (desktop only).
   bool _sidebarCollapsed = false;
@@ -428,4 +428,3 @@ class _NarrowShell extends StatelessWidget {
     );
   }
 }
-

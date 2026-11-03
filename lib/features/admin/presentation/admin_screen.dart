@@ -14,6 +14,20 @@ class _AdminScreenState extends State<AdminScreen> {
   final AdminApiService _api = AdminApiService();
   final TextEditingController _email = TextEditingController();
   final TextEditingController _password = TextEditingController();
+  static const Map<String, String> _providerLabels = {
+    'openrouter': 'OpenRouter',
+    'deepseek': 'DeepSeek',
+    'groq': 'Groq',
+    'openai': 'OpenAI',
+    'google_ai_studio': 'Google AI Studio',
+  };
+  static const Map<String, String> _providerUrls = {
+    'openrouter': 'https://openrouter.ai/api/v1',
+    'deepseek': 'https://api.deepseek.com/v1',
+    'groq': 'https://api.groq.com/openai/v1',
+    'openai': 'https://api.openai.com/v1',
+    'google_ai_studio': 'https://generativelanguage.googleapis.com/v1beta/openai',
+  };
   String _section = 'overview';
   Object? _data;
   bool _loggedIn = false;
@@ -63,6 +77,247 @@ class _AdminScreenState extends State<AdminScreen> {
         _ => <dynamic>[],
       };
       if (mounted) setState(() => _data = result);
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _addProvider() async {
+    final connectionName = TextEditingController();
+    final apiKey = TextEditingController();
+    final baseUrl = TextEditingController(text: _providerUrls['openrouter']);
+    final modelName = TextEditingController();
+    final modelId = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    var providerType = 'openrouter';
+    final payload = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, dialogSetState) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: const Text('إضافة مفتاح مزود ونموذج'),
+          content: SizedBox(
+            width: 460,
+            child: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  DropdownButtonFormField<String>(
+                    value: providerType,
+                    decoration: const InputDecoration(labelText: 'مزود الخدمة'),
+                    items: _providerLabels.entries
+                        .map((entry) => DropdownMenuItem(
+                              value: entry.key,
+                              child: Text(entry.value),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      dialogSetState(() {
+                        providerType = value;
+                        baseUrl.text = _providerUrls[value]!;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  TextFormField(
+                    controller: connectionName,
+                    decoration: const InputDecoration(
+                      labelText: 'اسم الاتصال (لتمييز المفاتيح)',
+                      hintText: 'مثال: OpenRouter الرئيسي',
+                    ),
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'اكتب اسمًا لهذا الاتصال'
+                        : null,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  TextFormField(
+                    controller: baseUrl,
+                    keyboardType: TextInputType.url,
+                    decoration: const InputDecoration(labelText: 'Base URL'),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  TextFormField(
+                    controller: apiKey,
+                    obscureText: true,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    decoration: const InputDecoration(
+                      labelText: 'مفتاح API',
+                      helperText: 'يُرسل إلى الخادم ويُحفظ مشفرًا؛ لا يُعرض كاملًا.',
+                    ),
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'أدخل مفتاح API من لوحة المزود'
+                        : null,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  TextFormField(
+                    controller: modelName,
+                    decoration: const InputDecoration(labelText: 'اسم النموذج في التطبيق'),
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'اكتب اسم النموذج'
+                        : null,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  TextFormField(
+                    controller: modelId,
+                    autocorrect: false,
+                    decoration: const InputDecoration(
+                      labelText: 'معرّف النموذج لدى المزود',
+                      hintText: 'أدخله كما يظهر في لوحة المزود',
+                    ),
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'اكتب معرّف النموذج'
+                        : null,
+                  ),
+                ]),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (!formKey.currentState!.validate()) return;
+                Navigator.pop(dialogContext, <String, dynamic>{
+                  'name': connectionName.text.trim(),
+                  'provider_type': providerType,
+                  'base_url': baseUrl.text.trim(),
+                  'api_key': apiKey.text.trim(),
+                  'model_name': modelName.text.trim(),
+                  'model_identifier': modelId.text.trim(),
+                });
+              },
+              child: const Text('حفظ المزود والنموذج'),
+            ),
+          ],
+        ),
+      ),
+    );
+    connectionName.dispose();
+    apiKey.dispose();
+    baseUrl.dispose();
+    modelName.dispose();
+    modelId.dispose();
+    if (payload == null) return;
+
+    try {
+      setState(() { _loading = true; _error = null; });
+      final provider = await _api.createProvider({
+        'name': payload['name'],
+        'provider_type': payload['provider_type'],
+        'base_url': payload['base_url'],
+        'api_key': payload['api_key'],
+        'enabled': true,
+        'priority': 100,
+        'timeout_seconds': 30,
+      });
+      await _api.createModel({
+        'name': payload['model_name'],
+        'provider_id': provider['id'],
+        'model_identifier': payload['model_identifier'],
+        'enabled': true,
+        'priority': 100,
+        'fallback_eligible': true,
+      });
+      await _loadSection('providers');
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _addModel() async {
+    final providers = (await _api.getProviders())
+        .where((item) => item is Map && item['enabled'] == true)
+        .map((item) => Map<String, dynamic>.from(item as Map))
+        .toList();
+    if (providers.isEmpty) {
+      if (mounted) setState(() => _error = 'أضف وفعّل مزودًا أولًا.');
+      return;
+    }
+    final name = TextEditingController();
+    final identifier = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    var providerId = providers.first['id'] as int;
+    final payload = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, dialogSetState) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: const Text('إضافة نموذج لمزود'),
+          content: SizedBox(
+            width: 440,
+            child: Form(
+              key: formKey,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                DropdownButtonFormField<int>(
+                  value: providerId,
+                  decoration: const InputDecoration(labelText: 'المزود'),
+                  items: providers.map((provider) => DropdownMenuItem<int>(
+                    value: provider['id'] as int,
+                    child: Text(provider['name']?.toString() ?? 'مزود'),
+                  )).toList(),
+                  onChanged: (value) {
+                    if (value != null) dialogSetState(() => providerId = value);
+                  },
+                ),
+                const SizedBox(height: AppSpacing.md),
+                TextFormField(
+                  controller: name,
+                  decoration: const InputDecoration(labelText: 'الاسم الظاهر'),
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'اكتب اسم النموذج'
+                      : null,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                TextFormField(
+                  controller: identifier,
+                  autocorrect: false,
+                  decoration: const InputDecoration(
+                    labelText: 'معرّف النموذج لدى المزود',
+                    hintText: 'اكتبه كما هو في لوحة المزود',
+                  ),
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'اكتب معرّف النموذج'
+                      : null,
+                ),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('إلغاء')),
+            FilledButton(
+              onPressed: () {
+                if (!formKey.currentState!.validate()) return;
+                Navigator.pop(dialogContext, <String, dynamic>{
+                  'name': name.text.trim(),
+                  'provider_id': providerId,
+                  'model_identifier': identifier.text.trim(),
+                  'enabled': true,
+                  'priority': 100,
+                  'fallback_eligible': true,
+                });
+              },
+              child: const Text('حفظ النموذج'),
+            ),
+          ],
+        ),
+      ),
+    );
+    name.dispose();
+    identifier.dispose();
+    if (payload == null) return;
+    try {
+      setState(() { _loading = true; _error = null; });
+      await _api.createModel(payload);
+      await _loadSection('models');
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {
@@ -204,7 +459,19 @@ class _AdminScreenState extends State<AdminScreen> {
                 IconButton(
                     onPressed: _loading ? null : () => _loadSection(_section),
                     icon: const Icon(Icons.refresh),
-                    tooltip: 'تحديث')
+                    tooltip: 'تحديث'),
+                if (_section == 'providers')
+                  IconButton(
+                    onPressed: _loading ? null : _addProvider,
+                    icon: const Icon(Icons.add),
+                    tooltip: 'إضافة مفتاح مزود ونموذج',
+                  ),
+                if (_section == 'models')
+                  IconButton(
+                    onPressed: _loading ? null : _addModel,
+                    icon: const Icon(Icons.add),
+                    tooltip: 'إضافة نموذج',
+                  ),
               ]),
               const SizedBox(height: AppSpacing.md),
               if (_error != null) _ErrorBox(message: _error!),
@@ -499,12 +766,16 @@ class _SimpleList extends StatelessWidget {
       itemBuilder: (_, index) {
         final item = items[index] as Map<String, dynamic>;
         final enabled = item['enabled'] == true || item['is_active'] == true;
+        final keyStatus = item['masked_key']?.toString();
+        final subtitle = keyStatus == null
+            ? item[subtitleKey]?.toString() ?? ''
+            : '${item[subtitleKey] ?? ''} • $keyStatus';
         return ListTile(
           leading:
               const Icon(Icons.circle, size: 12, color: AppColors.primaryGold),
           title: Text(item[titleKey]?.toString() ?? '',
               style: const TextStyle(color: AppColors.text)),
-          subtitle: Text(item[subtitleKey]?.toString() ?? '',
+          subtitle: Text(subtitle,
               style: const TextStyle(color: AppColors.textMuted)),
           trailing: Text(enabled ? 'فعال' : 'غير فعال',
               style: TextStyle(

@@ -9,6 +9,7 @@ import jwt
 from sqlalchemy.orm import Session
 
 from backend.app.core.config import settings
+from backend.app.db.models.admin import RevokedToken
 from backend.app.db.models.user import User
 
 
@@ -42,19 +43,34 @@ def generate_token(user_id: int, is_admin: bool = False) -> str:
     payload = {
         "sub": str(user_id),
         "kind": "admin" if is_admin else "user",
+        "jti": secrets.token_urlsafe(24),
         "iat": now,
         "exp": now + timedelta(seconds=expiry_seconds),
     }
     return jwt.encode(payload, _secret(), algorithm="HS256")
 
 
+def decode_token(token: str) -> Optional[dict]:
+    try:
+        return jwt.decode(token, _secret(), algorithms=["HS256"])
+    except (jwt.PyJWTError, RuntimeError):
+        return None
+
+
+def token_identifier(token: str, payload: Optional[dict] = None) -> str:
+    claims = payload or decode_token(token) or {}
+    return str(claims.get("jti") or hashlib.sha256(token.encode("utf-8")).hexdigest())
+
+
 def verify_token(token: str, require_admin: bool = False) -> Optional[int]:
     try:
-        payload = jwt.decode(token, _secret(), algorithms=["HS256"])
+        payload = decode_token(token)
+        if payload is None:
+            return None
         if require_admin and payload.get("kind") != "admin":
             return None
         return int(payload["sub"])
-    except (jwt.PyJWTError, KeyError, TypeError, ValueError, RuntimeError):
+    except (KeyError, TypeError, ValueError):
         return None
 
 
@@ -88,6 +104,19 @@ class AuthService:
             raise ValueError("User is inactive.")
         return user
 
-    def logout(self, _user_id: int) -> bool:
-        # JWTs are short-lived; server-side revocation is a documented next step.
+    def logout(self, user_id: int, token: str) -> bool:
+        payload = decode_token(token)
+        if not payload or int(payload.get("sub", 0)) != user_id:
+            return False
+        token_id = token_identifier(token, payload)
+        expires_at = payload.get("exp")
+        if not expires_at:
+            return False
+        existing = self.db.query(RevokedToken).filter(RevokedToken.token_id == token_id).first()
+        if not existing:
+            self.db.add(RevokedToken(
+                token_id=token_id,
+                expires_at=datetime.fromtimestamp(float(expires_at), timezone.utc),
+            ))
+            self.db.commit()
         return True

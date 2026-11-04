@@ -1,66 +1,63 @@
-/// Remote repository that connects to Backend via ConversationApiService.
-/// implements the ConversationRepository interface using real HTTP calls.
-library;
-
-import 'package:flutter/foundation.dart';
-
-import '../../../core/config/api_config.dart';
-import '../../auth/data/auth_session.dart';
-import '../../chat/domain/conversation.dart';
-import '../../chat/domain/message.dart';
+import '../domain/conversation.dart';
+import '../domain/message.dart';
 import 'conversation_api_service.dart';
 
-/// Fallback in-memory repository for when backend is unavailable.
+/// Contract consumed by the chat presentation layer.
+abstract interface class ConversationRepository {
+  Future<List<Conversation>> getConversations();
+  Future<Conversation?> getConversation(String id);
+  Future<Conversation> createConversation({String? title});
+  Future<void> renameConversation(String id, String newTitle);
+  Future<bool> deleteConversation(String id);
+  Future<void> addMessage(String conversationId, Message message);
+  Future<bool> replaceMessage(
+    String conversationId,
+    String messageId,
+    Message newMessage,
+  );
+  Future<bool> removeMessage(String conversationId, String messageId);
+  Future<void> clear();
+}
+
+/// Explicit local repository for previews and widget tests only.
 class InMemoryConversationRepository implements ConversationRepository {
-  final Map<String, Conversation> _conversations = {};
+  final Map<String, Conversation> _conversations = <String, Conversation>{};
 
   @override
-  Future<List<Conversation>> getConversations() async {
-    final list = _conversations.values.toList()
-      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    return list.isEmpty
-        ? [_getDefaultConversation()]
-        : list;
-  }
+  Future<List<Conversation>> getConversations() async => _sortedValues();
 
   @override
-  Future<Conversation?> getConversation(String id) async =>
-      _conversations[id];
+  Future<Conversation?> getConversation(String id) async => _conversations[id];
 
   @override
   Future<Conversation> createConversation({String? title}) async {
-    final id = DateTime.now().millisecondsSinceEpoch.toString();
+    final now = DateTime.now();
     final conversation = Conversation(
-      id: id,
-      title: title ?? 'محادثة جديدة',
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
+      id: now.microsecondsSinceEpoch.toString(),
+      title: title?.trim().isNotEmpty == true ? title!.trim() : 'محادثة جديدة',
+      createdAt: now,
+      updatedAt: now,
+      messages: <Message>[],
     );
-    _conversations[id] = conversation;
+    _conversations[conversation.id] = conversation;
     return conversation;
   }
 
   @override
   Future<void> renameConversation(String id, String newTitle) async {
     final conversation = _conversations[id];
-    if (conversation != null) {
-      conversation.title = newTitle.trim().isEmpty
-          ? 'محادثة جديدة'
-          : newTitle.trim();
-      conversation.updatedAt = DateTime.now();
-    }
+    if (conversation == null) return;
+    conversation.title = newTitle.trim().isEmpty ? 'محادثة جديدة' : newTitle.trim();
+    conversation.updatedAt = DateTime.now();
   }
 
   @override
-  Future<bool> deleteConversation(String id) =>
+  Future<bool> deleteConversation(String id) async =>
       _conversations.remove(id) != null;
 
   @override
   Future<void> addMessage(String conversationId, Message message) async {
-    final conversation = _conversations[conversationId];
-    if (conversation != null) {
-      conversation.addMessage(message);
-    }
+    _conversations[conversationId]?.addMessage(message);
   }
 
   @override
@@ -68,132 +65,72 @@ class InMemoryConversationRepository implements ConversationRepository {
     String conversationId,
     String messageId,
     Message newMessage,
-  ) async {
-    final conversation = _conversations[conversationId];
-    if (conversation != null) {
-      return conversation.replaceMessage(messageId, newMessage);
-    }
-    return false;
-  }
+  ) async => _conversations[conversationId]?.replaceMessage(messageId, newMessage) ?? false;
 
   @override
-  Future<bool> removeMessage(String conversationId, String messageId) async {
-    final conversation = _conversations[conversationId];
-    if (conversation != null) {
-      return conversation.removeMessage(messageId);
-    }
-    return false;
-  }
+  Future<bool> removeMessage(String conversationId, String messageId) async =>
+      _conversations[conversationId]?.removeMessage(messageId) ?? false;
 
   @override
   Future<void> clear() async => _conversations.clear();
 
-  Conversation _getDefaultConversation() {
-    return Conversation(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: 'محادثة جديدة',
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-      messages: [],
-    );
-  }
+  List<Conversation> _sortedValues() => _conversations.values.toList()
+    ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 }
 
-/// Remote repository that connects to Backend via ConversationApiService.
-/// implements the ConversationRepository interface using real HTTP calls.
+/// Backend-backed repository. Network errors are propagated to the caller so
+/// the UI can show an honest error instead of replacing user data with a fake
+/// local conversation.
 class ApiConversationRepository implements ConversationRepository {
-  final ConversationApiService _api = ConversationApiService();
+  ApiConversationRepository({ConversationApiService? api})
+      : _api = api ?? ConversationApiService();
+
+  final ConversationApiService _api;
+  final Map<String, Conversation> _cache = <String, Conversation>{};
 
   @override
   Future<List<Conversation>> getConversations() async {
-    try {
-      final conversations = await _api.getConversationsBackend();
-      // If backend returns empty (e.g., first time), initialize with default
-      if (conversations.isEmpty) {
-        return [_getDefaultConversation()];
-      }
-      return conversations;
-    } catch (e) {
-      // Fallback to in-memory on error
-      final fallback = InMemoryConversationRepository();
-      return fallback.getConversations();
-    }
+    final conversations = await _api.getConversationsBackend();
+    _cache
+      ..clear()
+      ..addEntries(conversations.map((item) => MapEntry(item.id, item)));
+    return conversations;
   }
 
   @override
   Future<Conversation?> getConversation(String id) async {
-    try {
-      final conversation = await _api.getConversationBackend(id);
-      return conversation;
-    } catch (_) {
-      // Fallback to in-memory
-      final fallback = InMemoryConversationRepository();
-      return fallback.getConversation(id);
-    }
+    final conversation = await _api.getConversationBackend(id);
+    _cache[id] = conversation;
+    return conversation;
   }
 
   @override
   Future<Conversation> createConversation({String? title}) async {
-    try {
-      final conversation = await _api.createConversationBackend(
-        title: title ?? 'محادثة جديدة',
-      );
-      return conversation;
-    } catch (_) {
-      // Fallback to in-memory
-      final fallback = InMemoryConversationRepository();
-      return fallback.createConversation(title: title);
-    }
+    final conversation = await _api.createConversationBackend(title: title);
+    _cache[conversation.id] = conversation;
+    return conversation;
   }
 
   @override
   Future<void> renameConversation(String id, String newTitle) async {
-    try {
-      await _api.updateConversationBackend(
-        id: id,
-        title: newTitle,
-      );
-      // Refresh local state by re-fetching
-      final conversations = await getConversations();
-      if (conversations.isNotEmpty) {
-        final idx =
-            conversations.indexWhere((c) => c.id == id);
-        if (idx != -1) {
-          conversations[idx].title = newTitle;
-        }
-      }
-    } catch (_) {
-      // Fallback to in-memory
-      final fallback = InMemoryConversationRepository();
-      await fallback.renameConversation(id, newTitle);
-    }
+    final conversation = await _api.updateConversationBackend(
+      id: id,
+      title: newTitle,
+    );
+    _cache[id] = conversation;
   }
 
   @override
   Future<bool> deleteConversation(String id) async {
-    try {
-      await _api.deleteConversationBackend(id);
-      // Remove from local state
-      final conversations = await getConversations();
-      return conversations.removeWhere((c) => c.id == id) != null;
-    } catch (_) {
-      // Fallback to in-memory
-      final fallback = InMemoryConversationRepository();
-      return fallback.deleteConversation(id);
-    }
+    await _api.deleteConversationBackend(id);
+    return _cache.remove(id) != null;
   }
 
   @override
   Future<void> addMessage(String conversationId, Message message) async {
-    // Implementation depends on whether backend handles message storage
-    // For now, update local state only
-    final conversations = await getConversations();
-    for (final conversation in conversations) {
-      if (conversation.id == conversationId) {
-        conversation.addMessage(message);
-        break;
-      }
-    }
+    // Messages are persisted atomically by POST /chat/ together with the AI
+    // response. Keep the in-memory view in sync for the current screen only.
+    _cache[conversationId]?.addMessage(message);
   }
 
   @override
@@ -201,49 +138,14 @@ class ApiConversationRepository implements ConversationRepository {
     String conversationId,
     String messageId,
     Message newMessage,
-  ) async {
-    final conversations = await getConversations();
-    for (final conversation in conversations) {
-      if (conversation.id == conversationId) {
-        return conversation.replaceMessage(messageId, newMessage);
-      }
-    }
-    return false;
-  }
+  ) async => _cache[conversationId]?.replaceMessage(messageId, newMessage) ?? false;
 
   @override
-  Future<bool> removeMessage(String conversationId, String messageId) async {
-    final conversations = await getConversations();
-    for (final conversation in conversations) {
-      if (conversation.id == conversationId) {
-        return conversation.removeMessage(messageId);
-      }
-    }
-    return false;
-  }
+  Future<bool> removeMessage(String conversationId, String messageId) async =>
+      _cache[conversationId]?.removeMessage(messageId) ?? false;
 
   @override
-  Future<void> clear() async {
-    // Clear both local and remote state
-    // In a real app, would sync with backend logout
-  }
+  Future<void> clear() async => _cache.clear();
 
-  /// Get conversations list, with fallback to default if empty
-  Future<List<Conversation>> get conversations async {
-    final list = await getConversations();
-    if (list.isEmpty) {
-      return [_getDefaultConversation()];
-    }
-    return list;
-  }
-
-  Conversation _getDefaultConversation() {
-    return Conversation(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: 'محادثة جديدة',
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-      messages: [],
-    );
-  }
+  Future<List<Conversation>> get conversations => getConversations();
 }

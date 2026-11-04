@@ -61,6 +61,38 @@ class AuthApiService {
     AuthSession.accessToken = token;
   }
 
+  Future<Map<String, dynamic>> currentUser() async {
+    final token = AuthSession.accessToken;
+    if (token == null || token.isEmpty) {
+      throw const AuthApiException('لا توجد جلسة نشطة.');
+    }
+    final response = await http.get(
+      _endpoint('me'),
+      headers: <String, String>{'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode == 401) AuthSession.clear();
+    if (response.statusCode != 200) {
+      throw AuthApiException(_message(response, 'تعذر التحقق من الجلسة'));
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  Future<void> logout() async {
+    final token = AuthSession.accessToken;
+    if (token == null || token.isEmpty) return;
+    try {
+      final response = await http.post(
+        _endpoint('logout'),
+        headers: <String, String>{'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode != 200 && response.statusCode != 401) {
+        throw AuthApiException(_message(response, 'تعذر تسجيل الخروج من الخادم'));
+      }
+    } finally {
+      AuthSession.clear();
+    }
+  }
+
   String _message(http.Response response, String fallback) {
     try {
       final data = jsonDecode(response.body) as Map<String, dynamic>;

@@ -181,6 +181,17 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
   }
 
   Future<void> _signOut() async {
+    final token = _token;
+    if (token != null && token.isNotEmpty) {
+      try {
+        await http.post(
+          _base.resolve('/api/v1/auth/logout'),
+          headers: _headers(token),
+        );
+      } catch (_) {
+        // Always clear local state even if the network is unavailable.
+      }
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
     setState(() {

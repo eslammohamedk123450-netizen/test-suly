@@ -44,12 +44,13 @@ def _secret() -> str:
     return settings.secret_key
 
 
-def generate_token(user_id: int, is_admin: bool = False) -> str:
+def generate_token(user_id: int, is_admin: bool = False, session_version: int = 1) -> str:
     now = datetime.now(timezone.utc)
     expiry_seconds = settings.admin_token_expire_seconds if is_admin else settings.auth_token_expire_seconds
     payload = {
         "sub": str(user_id),
         "kind": "admin" if is_admin else "user",
+        "session_version": session_version,
         "jti": secrets.token_urlsafe(24),
         "iat": now,
         "exp": now + timedelta(seconds=expiry_seconds),
@@ -158,7 +159,7 @@ class AuthService:
         # Lazy fallback keeps the first authenticated request after midnight reliable
         # even if the scheduled Supabase job is delayed or temporarily unavailable.
         self.award_daily_bonus(user)
-        return user, generate_token(user.id, is_admin=user.is_admin)
+        return user, generate_token(user.id, is_admin=user.is_admin, session_version=user.session_version)
 
     def has_daily_bonus_today(self, user: User, now: Optional[datetime] = None) -> bool:
         now = now or datetime.now(timezone.utc)
@@ -261,3 +262,23 @@ class AuthService:
             )
             self.db.commit()
         return True
+
+    def change_password(self, user: User, current_password: str, new_password: str) -> None:
+        if not verify_password(current_password, user.hashed_password):
+            raise ValueError("Current password is incorrect.")
+        if len(new_password) < 8:
+            raise ValueError("New password must be at least 8 characters long.")
+        user.hashed_password = hash_password(new_password)[0]
+        user.session_version += 1
+        self.db.commit()
+
+    def revoke_all_sessions(self, user: User) -> None:
+        user.session_version += 1
+        self.db.commit()
+
+    def delete_account(self, user: User, password: str) -> None:
+        if not verify_password(password, user.hashed_password):
+            raise ValueError("Password is incorrect.")
+        user.is_active = False
+        user.session_version += 1
+        self.db.commit()

@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordBearer
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -53,12 +54,15 @@ def get_current_user_record(
     if user_id is None:
         raise HTTPException(status_code=401, detail="Invalid or expired token", headers={"WWW-Authenticate": "Bearer"})
     payload = decode_token(token)
+    token_session_version = payload.get("session_version", 1) if payload else 1
     token_id = token_identifier(token, payload) if payload else None
     if token_id and db.query(RevokedToken).filter(RevokedToken.token_id == token_id).first():
         raise HTTPException(status_code=401, detail="Token has been revoked", headers={"WWW-Authenticate": "Bearer"})
     try:
         service = AuthService(db)
         user = service.get_current_user(user_id)
+        if token_session_version != user.session_version:
+            raise HTTPException(status_code=401, detail="Session has been revoked", headers={"WWW-Authenticate": "Bearer"})
         # The database scheduler grants at Cairo midnight; this idempotent check
         # is a fallback for delayed jobs and makes the balance current on app use.
         service.award_daily_bonus(user)
@@ -69,6 +73,15 @@ def get_current_user_record(
 
 def get_current_user(current: User = Depends(get_current_user_record)) -> CurrentUserResponse:
     return _response(current)
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=8)
+
+
+class AccountDeleteRequest(BaseModel):
+    password: str = Field(..., min_length=1)
 
 
 def get_current_admin(current: User = Depends(get_current_user_record)) -> User:
@@ -153,6 +166,38 @@ def logout(
     if not token or not AuthService(db).logout(current.id, token):
         raise HTTPException(status_code=401, detail="The current token could not be revoked")
     return {"message": "Logged out successfully; token has been revoked"}
+
+
+@router.post("/sessions/revoke-all")
+def revoke_all_sessions(current: User = Depends(get_current_user_record), db: Session = Depends(get_db)) -> dict:
+    AuthService(db).revoke_all_sessions(current)
+    return {"message": "All sessions have been revoked"}
+
+
+@router.post("/password")
+def change_password(
+    request: PasswordChangeRequest,
+    current: User = Depends(get_current_user_record),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        AuthService(db).change_password(current, request.current_password, request.new_password)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"message": "Password changed; previous sessions have been revoked"}
+
+
+@router.delete("/account")
+def delete_account(
+    request: AccountDeleteRequest,
+    current: User = Depends(get_current_user_record),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        AuthService(db).delete_account(current, request.password)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"message": "Account deleted"}
 
 
 @router.get("/credits/balance", response_model=CreditBalanceOut)

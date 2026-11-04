@@ -12,6 +12,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/suly_brand_mark.dart';
 import '../../auth/data/auth_session.dart';
 import '../../../l10n/generated/app_localizations.dart';
+import '../widgets/markdown_message.dart';
 
 class _StreamResult {
   const _StreamResult({
@@ -965,12 +966,14 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            SelectableText(
-                              message['content']?.toString() ?? '',
-                              style: const TextStyle(
-                                  color: AppColors.text, height: 1.5),
-                              textDirection: _textDirection(
-                                  message['content']?.toString() ?? ''),
+                            MarkdownMessage(
+                              text: message['content']?.toString() ?? '',
+                              isRtl: _textDirection(
+                                      message['content']?.toString() ?? '') ==
+                                  TextDirection.rtl,
+                              onCopy: (value) {
+                                _copyMessage(value);
+                              },
                             ),
                             if (!isUser &&
                                 (message['content']?.toString().isNotEmpty ?? false))

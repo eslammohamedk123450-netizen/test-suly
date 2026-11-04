@@ -18,10 +18,12 @@ class MarkdownMessage extends StatelessWidget {
     super.key,
     required this.text,
     required this.isRtl,
+    this.onCopy,
   });
 
   final String text;
   final bool isRtl;
+  final ValueChanged<String>? onCopy;
 
   @override
   Widget build(BuildContext context) {
@@ -72,6 +74,7 @@ class MarkdownMessage extends StatelessWidget {
         return _CodeBlock(
           code: block.code!,
           language: block.language ?? '',
+          onCopy: onCopy,
         );
       case _BlockType.text:
         return _TextBlock(text: block.text!, isRtl: isRtl);
@@ -124,9 +127,14 @@ class _TextBlock extends StatelessWidget {
 }
 
 class _CodeBlock extends StatelessWidget {
-  const _CodeBlock({required this.code, required this.language});
+  const _CodeBlock({
+    required this.code,
+    required this.language,
+    this.onCopy,
+  });
   final String code;
   final String language;
+  final ValueChanged<String>? onCopy;
 
   @override
   Widget build(BuildContext context) {
@@ -167,7 +175,7 @@ class _CodeBlock extends StatelessWidget {
                     ),
                   ),
                 const Spacer(),
-                const _CodeCopyButton(),
+                _CodeCopyButton(code: code, onCopy: onCopy),
               ],
             ),
           ),
@@ -190,12 +198,14 @@ class _CodeBlock extends StatelessWidget {
 }
 
 class _CodeCopyButton extends StatelessWidget {
-  const _CodeCopyButton();
+  const _CodeCopyButton({required this.code, this.onCopy});
+  final String code;
+  final ValueChanged<String>? onCopy;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {},
+      onTap: onCopy == null ? null : () => onCopy!(code),
       borderRadius: BorderRadius.circular(8),
       child: Padding(
         padding: const EdgeInsets.all(6),

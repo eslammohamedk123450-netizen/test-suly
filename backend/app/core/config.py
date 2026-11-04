@@ -48,7 +48,12 @@ class Settings(BaseSettings):
         "application/json", "image/png", "image/jpeg", "image/webp",
     ]
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        # DATABASE_* values live in the same shared .env file.
+        "extra": "ignore",
+    }
 
 
 settings = Settings()

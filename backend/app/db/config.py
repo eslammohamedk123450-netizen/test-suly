@@ -20,7 +20,12 @@ class DatabaseSettings(BaseSettings):
     database_url: str = "sqlite:///./suly_ai.db"
     database_echo: bool = False
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        # The shared .env also contains application and auth settings.
+        "extra": "ignore",
+    }
 
 
 db_settings = DatabaseSettings()

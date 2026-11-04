@@ -1,0 +1,6 @@
+{
+  "name": "ChatGPT",
+  "description": "ChatGPT - A modern, pixel-perfect conversational AI interface with custom models, voice mode, multimodal chat, and full ChatGPT UI controls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

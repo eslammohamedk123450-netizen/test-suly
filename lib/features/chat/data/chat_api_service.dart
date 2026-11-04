@@ -127,7 +127,7 @@ Future<ChatApiResult> sendMessage({
     if (response.statusCode < 200 || response.statusCode >= 300) {
       // انتهاء الجلسة (401)
       if (response.statusCode == 401) {
-        AuthSession.clear();
+        await AuthSession.clearPersisted();
         return ChatApiResult.error(
           'انتهت جلسة الدخول. يُرجى إعادة إرسال الرسالة وتسجيل الدخول مجددًا.',
           providerConnected: false,
@@ -216,6 +216,6 @@ Future<ChatApiResult> sendMessage({
 }
 
 /// مسح رمز المصادقة المخزن.
-void clearAuth() {
-  AuthSession.clear();
+Future<void> clearAuth() async {
+  await AuthSession.clearPersisted();
 }

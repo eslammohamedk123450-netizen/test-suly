@@ -56,9 +56,10 @@ class AuthApiService {
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     final token = data['access_token'];
     if (token is! String || token.isEmpty) {
-      throw const AuthApiException('استجابة تسجيل الدخول لا تحتوي على رمز جلسة صالح.');
+      throw const AuthApiException(
+          'استجابة تسجيل الدخول لا تحتوي على رمز جلسة صالح.');
     }
-    AuthSession.accessToken = token;
+    await AuthSession.saveAccessToken(token);
   }
 
   Future<Map<String, dynamic>> currentUser() async {
@@ -70,7 +71,7 @@ class AuthApiService {
       _endpoint('me'),
       headers: <String, String>{'Authorization': 'Bearer $token'},
     );
-    if (response.statusCode == 401) AuthSession.clear();
+    if (response.statusCode == 401) await AuthSession.clearPersisted();
     if (response.statusCode != 200) {
       throw AuthApiException(_message(response, 'تعذر التحقق من الجلسة'));
     }
@@ -86,10 +87,11 @@ class AuthApiService {
         headers: <String, String>{'Authorization': 'Bearer $token'},
       );
       if (response.statusCode != 200 && response.statusCode != 401) {
-        throw AuthApiException(_message(response, 'تعذر تسجيل الخروج من الخادم'));
+        throw AuthApiException(
+            _message(response, 'تعذر تسجيل الخروج من الخادم'));
       }
     } finally {
-      AuthSession.clear();
+      await AuthSession.clearPersisted();
     }
   }
 

@@ -34,7 +34,7 @@ class FunctionalChatScreen extends StatefulWidget {
 }
 
 class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
-  static const _tokenKey = 'suly_access_token';
+  static const _legacyTokenKey = 'suly_access_token';
   final _email = TextEditingController();
   final _password = TextEditingController();
   final _message = TextEditingController();
@@ -76,8 +76,22 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
   }
 
   Future<void> _restoreSession() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString(_tokenKey);
+    String? saved = await AuthSession.restoreAccessToken();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final legacyToken = prefs.getString(_legacyTokenKey);
+      if ((saved == null || saved.isEmpty) &&
+          legacyToken != null &&
+          legacyToken.isNotEmpty) {
+        await AuthSession.saveAccessToken(legacyToken);
+        saved = legacyToken;
+      }
+      await prefs.remove(_legacyTokenKey);
+    } catch (_) {
+      if (saved == null || saved.isEmpty) {
+        _error = _strings.connectionError;
+      }
+    }
     if (saved != null && saved.isNotEmpty) {
       try {
         final response = await http.get(
@@ -86,12 +100,10 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
         );
         if (response.statusCode == 200) {
           _token = saved;
-          AuthSession.accessToken = saved;
           await _loadConversations();
           await _loadCreditBalance();
         } else {
-          await prefs.remove(_tokenKey);
-          AuthSession.clear();
+          await _invalidateSession();
         }
       } catch (_) {
         _error = _strings.connectionError;
@@ -132,11 +144,11 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
   }
 
   Future<void> _invalidateSession() async {
-    AuthSession.clear();
+    await AuthSession.clearPersisted();
     _token = null;
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_tokenKey);
+      await prefs.remove(_legacyTokenKey);
     } catch (_) {
       // The in-memory session is still invalidated when storage is unavailable.
     }
@@ -201,10 +213,10 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
           token: null);
       final token = login['access_token']?.toString();
       if (token == null || token.isEmpty) throw _strings.missingAccessToken;
+      await AuthSession.saveAccessToken(token);
       _token = token;
-      AuthSession.accessToken = token;
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_tokenKey, token);
+      await prefs.remove(_legacyTokenKey);
       await _loadConversations();
       await _loadCreditBalance();
     } catch (error) {
@@ -226,9 +238,13 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
         // Always clear local state even if the network is unavailable.
       }
     }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_tokenKey);
-    AuthSession.clear();
+    await AuthSession.clearPersisted();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_legacyTokenKey);
+    } catch (_) {
+      // Secure storage and in-memory session have already been cleared.
+    }
     setState(() {
       _token = null;
       _conversationId = null;
@@ -331,7 +347,8 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
       );
     } catch (error) {
       if (mounted) {
-        setState(() => _error = error.toString().replaceFirst('Exception: ', ''));
+        setState(
+            () => _error = error.toString().replaceFirst('Exception: ', ''));
       }
     }
   }
@@ -399,7 +416,8 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
             child: Text(_strings.cancel),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
             child: Text(Localizations.localeOf(context).languageCode == 'ar'
                 ? 'حفظ'
                 : 'Save'),
@@ -421,7 +439,9 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
       }
       await _loadConversations();
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString().replaceFirst('Exception: ', ''));
+      if (mounted)
+        setState(
+            () => _error = error.toString().replaceFirst('Exception: ', ''));
     }
   }
 
@@ -472,7 +492,9 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
       }
       if (mounted) setState(() {});
     } catch (error) {
-      if (mounted) setState(() => _error = error.toString().replaceFirst('Exception: ', ''));
+      if (mounted)
+        setState(
+            () => _error = error.toString().replaceFirst('Exception: ', ''));
     }
   }
 
@@ -586,7 +608,8 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
       }
     } catch (error) {
       if (mounted) {
-        setState(() => _error = error.toString().replaceFirst('Exception: ', ''));
+        setState(
+            () => _error = error.toString().replaceFirst('Exception: ', ''));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -672,7 +695,8 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
                     if (action == 'rename') {
                       _renameConversation(
                         id,
-                        item['title']?.toString() ?? _strings.conversationFallback,
+                        item['title']?.toString() ??
+                            _strings.conversationFallback,
                       );
                     } else if (action == 'delete') {
                       _deleteConversation(id);
@@ -681,15 +705,17 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
                   itemBuilder: (_) => [
                     PopupMenuItem(
                       value: 'rename',
-                      child: Text(Localizations.localeOf(context).languageCode == 'ar'
-                          ? 'إعادة تسمية'
-                          : 'Rename'),
+                      child: Text(
+                          Localizations.localeOf(context).languageCode == 'ar'
+                              ? 'إعادة تسمية'
+                              : 'Rename'),
                     ),
                     PopupMenuItem(
                       value: 'delete',
-                      child: Text(Localizations.localeOf(context).languageCode == 'ar'
-                          ? 'حذف'
-                          : 'Delete'),
+                      child: Text(
+                          Localizations.localeOf(context).languageCode == 'ar'
+                              ? 'حذف'
+                              : 'Delete'),
                     ),
                   ],
                 ),
@@ -891,7 +917,8 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
                 borderRadius: BorderRadius.circular(18),
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 4),
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
                   decoration: BoxDecoration(
                     color: AppColors.background,
                     borderRadius: BorderRadius.circular(18),
@@ -976,7 +1003,8 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
                               },
                             ),
                             if (!isUser &&
-                                (message['content']?.toString().isNotEmpty ?? false))
+                                (message['content']?.toString().isNotEmpty ??
+                                    false))
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -991,7 +1019,8 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
                                         ? null
                                         : () => _copyMessage(
                                             message['content']!.toString()),
-                                    icon: const Icon(Icons.copy_outlined, size: 17),
+                                    icon: const Icon(Icons.copy_outlined,
+                                        size: 17),
                                   ),
                                   IconButton(
                                     visualDensity: VisualDensity.compact,

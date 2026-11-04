@@ -182,7 +182,7 @@ class ConversationApiService {
         _ => await (_client?.get(uri, headers: _headers) ??
             http.get(uri, headers: _headers)),
       };
-      if (response.statusCode == 401) AuthSession.clear();
+      if (response.statusCode == 401) await AuthSession.clearPersisted();
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw ConversationApiException(
           _errorMessage(response),

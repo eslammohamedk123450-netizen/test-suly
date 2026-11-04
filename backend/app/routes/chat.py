@@ -1,16 +1,18 @@
 
 """Chat API routes backed by configured AI providers."""
 import json
+from uuid import uuid4
 from datetime import datetime, timezone
 from collections.abc import Iterator
 
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from backend.app.auth.router import get_current_user_record
 from backend.app.db.models.admin import AIModel, AIProvider, Conversation, CreditTransaction, Message
+from backend.app.db.models.chat_request import ChatRequestRecord
 from backend.app.db.models.user import User
 from backend.app.db.session import get_db
 from backend.app.schemas.chat import ChatRequest, ChatResponse, ConversationOut, MessageOut
@@ -152,8 +154,9 @@ def stream_chat(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_record),
     _rate_info=Depends(check_rate_limit),
+    x_request_id: str | None = Header(default=None, alias="X-Request-ID"),
 ) -> StreamingResponse:
-    """Stream SSE deltas and persist the conversation only after completion."""
+    """Stream SSE deltas with durable request state and idempotent charging."""
     message_text = request.message.strip()
     if not message_text:
         raise HTTPException(status_code=422, detail="Message cannot be empty")
@@ -168,6 +171,19 @@ def stream_chat(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="A conversation is required when regenerating a response.",
         )
+    request_key = (x_request_id or uuid4().hex).strip()
+    if not request_key or len(request_key) > 255:
+        raise HTTPException(status_code=422, detail="X-Request-ID must contain 1-255 characters")
+    existing = db.query(ChatRequestRecord).filter(
+        ChatRequestRecord.user_id == current_user.id,
+        ChatRequestRecord.request_key == request_key,
+    ).first()
+    if existing is not None:
+        if existing.status == "completed" or (existing.reply and existing.credit_balance is not None):
+            payload = json.dumps({"delta": existing.reply}, ensure_ascii=False)
+            done = json.dumps({"done": True, "credit_balance": existing.credit_balance}, ensure_ascii=False)
+            return StreamingResponse(iter([f"data: {payload}\n\ndata: {done}\n\n"]), media_type="text/event-stream")
+        raise HTTPException(status_code=409, detail="This request is already in progress or failed; use a new X-Request-ID")
     conversation = (
         _conversation_or_404(db, conversation_id, current_user.id)
         if conversation_id is not None
@@ -176,6 +192,18 @@ def stream_chat(
     if conversation.id is None:
         db.add(conversation)
         db.flush()
+    request_record = ChatRequestRecord(
+        user_id=current_user.id,
+        conversation_id=conversation.id,
+        request_key=request_key,
+        message=message_text,
+        status="streaming",
+    )
+    db.add(request_record)
+    db.flush()
+    request_record_id = request_record.id
+    db.commit()
+    user_id = current_user.id
     recent_messages = (
         db.query(Message)
         .filter(Message.conversation_id == conversation.id)
@@ -201,7 +229,7 @@ def stream_chat(
                 raise ChatProviderError("The provider returned an empty response.")
             result = db.execute(
                 update(User)
-                .where(User.id == current_user.id, User.credit_balance >= 1)
+                .where(User.id == user_id, User.credit_balance >= 1)
                 .values(credit_balance=User.credit_balance - 1)
                 .returning(User.credit_balance)
             )
@@ -210,31 +238,43 @@ def stream_chat(
                 db.rollback()
                 yield f"data: {json.dumps({'error': 'Insufficient credit balance.'})}\n\n"
                 return
-            current_user.credit_balance = new_balance
+            db.execute(
+                update(ChatRequestRecord)
+                .where(ChatRequestRecord.id == request_record_id)
+                .values(reply=reply, status="completed", credit_balance=new_balance)
+            )
             if not regenerate:
                 db.add(Message(
                     conversation_id=conversation.id,
-                    user_id=current_user.id,
+                    user_id=user_id,
                     role="user",
                     content=message_text,
                 ))
             db.add(Message(
                 conversation_id=conversation.id,
-                user_id=current_user.id,
+                user_id=user_id,
                 role="assistant",
                 content=reply,
             ))
             db.add(CreditTransaction(
-                user_id=current_user.id,
+                user_id=user_id,
                 amount=-1,
                 balance_after=new_balance,
                 reason="AI chat request",
+                idempotency_key=f"chat:{user_id}:{request_key}",
             ))
             conversation.updated_at = datetime.now(timezone.utc)
             db.commit()
             yield f"data: {json.dumps({'done': True, 'credit_balance': new_balance})}\n\n"
         except Exception as exc:
             db.rollback()
+            if chunks:
+                db.execute(
+                    update(ChatRequestRecord)
+                    .where(ChatRequestRecord.id == request_record_id)
+                    .values(reply="".join(chunks), status="failed")
+                )
+                db.commit()
             yield f"data: {json.dumps({'error': str(exc)})}\n\n"
         finally:
             db.close()

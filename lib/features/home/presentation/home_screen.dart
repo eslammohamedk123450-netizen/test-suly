@@ -5,7 +5,7 @@ import '../../../core/navigation/app_nav_item.dart';
 import '../../../core/routing/app_routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_radii.dart';
-import '../../../core/theme/app_spacing.dart';
+import '../../../core/theme/app_spacing.dart' hide AppRadii;
 import '../../chat/presentation/chat_screen.dart';
 import 'home_dashboard.dart';
 import '../../common/under_development_view.dart';
@@ -109,7 +109,6 @@ class _AppShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Scaffold(
       backgroundColor: AppColors.background,
       body: Row(
@@ -182,7 +181,7 @@ class _Sidebar extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          AppStrings.navChat,
+                          AppStrings.tagline,
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: AppColors.textMuted,
                           ),
@@ -229,11 +228,14 @@ class _Sidebar extends StatelessWidget {
             ),
           ),
           // New chat button.
-          _IconButton(
-            icon: Icons.add_circle_outline,
+          IconButton.filled(
+            icon: const Icon(Icons.add_circle_outline),
             onPressed: () => onSelected(sulyNavIndex('new_chat')),
             tooltip: 'محادثة جديدة',
-            isPrimary: true,
+            style: IconButton.styleFrom(
+              backgroundColor: AppColors.primaryGold,
+              foregroundColor: AppColors.background,
+            ),
           ),
           // Profile area (desktop only).
           if (!collapsed) _ProfileArea(compact: collapsed),

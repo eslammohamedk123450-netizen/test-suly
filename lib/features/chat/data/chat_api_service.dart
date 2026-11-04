@@ -4,6 +4,7 @@
 /// جميع حالات الفشل تُ収録 في [ChatApiResult]؛ لا تُلقي استثناءات.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -91,6 +92,7 @@ class ChatTurn {
 Future<ChatApiResult> sendMessage({
   required String message,
   List<Map<String, String>> history = const [],
+  http.Client? client,
 }) async {
   try {
     final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.chatEndpoint}');
@@ -107,11 +109,17 @@ Future<ChatApiResult> sendMessage({
       headers['Authorization'] = 'Bearer ${AuthSession.accessToken}';
     }
 
-    final response = await http.post(
-      uri,
-      headers: headers,
-      body: jsonEncode(requestBody),
-    ).timeout(const Duration(seconds: 65), onTimeout: () {
+    final response = await (client?.post(
+              uri,
+              headers: headers,
+              body: jsonEncode(requestBody),
+            ) ??
+            http.post(
+              uri,
+              headers: headers,
+              body: jsonEncode(requestBody),
+            ))
+        .timeout(const Duration(seconds: 65), onTimeout: () {
       throw TimeoutException('انتهت مهلة الاتصال بالسيرفر.');
     });
 
@@ -166,7 +174,7 @@ Future<ChatApiResult> sendMessage({
 
     // التحقق من وجود حقل "reply" وأنه نص غير فارغ
     final reply = data['reply'];
-    if (reply == null || (reply as String).trim().isEmpty) {
+    if (reply is! String || reply.trim().isEmpty) {
       return ChatApiResult.error(
         'لم يتلق السيرفر ردًا صالحًا (حقل "reply" مفقود أو فارغ).',
         providerConnected: false,
@@ -182,11 +190,11 @@ Future<ChatApiResult> sendMessage({
       );
     }
 
-    final status = data['status'] as String?;
+    final status = data['status'];
 
     return ChatApiResult.success(
-      reply: reply as String,
-      status: status ?? 'success',
+      reply: reply,
+      status: status is String ? status : 'success',
       providerConnected: true,
     );
   } on TimeoutException {
@@ -211,4 +219,3 @@ Future<ChatApiResult> sendMessage({
 void clearAuth() {
   AuthSession.clear();
 }
-��

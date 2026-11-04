@@ -12,7 +12,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/suly_brand_mark.dart';
 import '../../auth/data/auth_session.dart';
 import '../../../l10n/generated/app_localizations.dart';
-import '../widgets/markdown_message.dart';
+import 'widgets/markdown_message.dart';
 
 class _StreamResult {
   const _StreamResult({

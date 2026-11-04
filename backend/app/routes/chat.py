@@ -1,8 +1,11 @@
 
 """Chat API routes backed by configured AI providers."""
+import json
 from datetime import datetime, timezone
+from collections.abc import Iterator
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import update
 from sqlalchemy.orm import Session
 
@@ -138,6 +141,105 @@ def chat(
         status="success",
         provider_connected=True,
         credit_balance=new_balance,
+    )
+
+
+@router.post("/stream", summary="Stream a chat response")
+def stream_chat(
+    request: ChatRequest,
+    conversation_id: int | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_record),
+    _rate_info=Depends(check_rate_limit),
+) -> StreamingResponse:
+    """Stream SSE deltas and persist the conversation only after completion."""
+    message_text = request.message.strip()
+    if not message_text:
+        raise HTTPException(status_code=422, detail="Message cannot be empty")
+    if current_user.credit_balance < 1:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Insufficient credit balance. Please add credits to continue.",
+        )
+
+    conversation = (
+        _conversation_or_404(db, conversation_id, current_user.id)
+        if conversation_id is not None
+        else Conversation(user_id=current_user.id, title="محادثة جديدة")
+    )
+    if conversation.id is None:
+        db.add(conversation)
+        db.flush()
+    recent_messages = (
+        db.query(Message)
+        .filter(Message.conversation_id == conversation.id)
+        .order_by(Message.created_at.desc())
+        .limit(40)
+        .all()
+    )
+    history = [
+        {"role": item.role, "content": item.content}
+        for item in reversed(recent_messages)
+    ]
+    if request.history:
+        history = [item.model_dump() for item in request.history][-40:]
+
+    def events() -> Iterator[str]:
+        chunks: list[str] = []
+        try:
+            for delta in ChatService(db).stream_reply(message_text, history):
+                chunks.append(delta)
+                yield f"data: {json.dumps({'delta': delta}, ensure_ascii=False)}\n\n"
+            reply = "".join(chunks).strip()
+            if not reply:
+                raise ChatProviderError("The provider returned an empty response.")
+            result = db.execute(
+                update(User)
+                .where(User.id == current_user.id, User.credit_balance >= 1)
+                .values(credit_balance=User.credit_balance - 1)
+                .returning(User.credit_balance)
+            )
+            new_balance = result.scalar_one_or_none()
+            if new_balance is None:
+                db.rollback()
+                yield f"data: {json.dumps({'error': 'Insufficient credit balance.'})}\n\n"
+                return
+            current_user.credit_balance = new_balance
+            db.add(Message(
+                conversation_id=conversation.id,
+                user_id=current_user.id,
+                role="user",
+                content=message_text,
+            ))
+            db.add(Message(
+                conversation_id=conversation.id,
+                user_id=current_user.id,
+                role="assistant",
+                content=reply,
+            ))
+            db.add(CreditTransaction(
+                user_id=current_user.id,
+                amount=-1,
+                balance_after=new_balance,
+                reason="AI chat request",
+            ))
+            conversation.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            yield f"data: {json.dumps({'done': True, 'credit_balance': new_balance})}\n\n"
+        except Exception as exc:
+            db.rollback()
+            yield f"data: {json.dumps({'error': str(exc)})}\n\n"
+        finally:
+            db.close()
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 

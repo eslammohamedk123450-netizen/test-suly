@@ -113,3 +113,31 @@ def test_chat_service_tries_models_sequentially_until_first_success_even_without
     assert complete.call_count == 2
     assert complete.call_args_list[0].args[1] is model_one
     assert complete.call_args_list[1].args[1] is model_two
+
+
+class _StreamingResponse(_Response):
+    def __init__(self, lines: list[bytes]):
+        super().__init__(b"")
+        self._lines = lines
+
+    def __iter__(self):
+        return iter(self._lines)
+
+
+def test_stream_complete_yields_openai_sse_deltas():
+    settings.credential_encryption_key = Fernet.generate_key().decode()
+    provider = SimpleNamespace(
+        provider_type="openai",
+        base_url=None,
+        encrypted_api_key=encrypt_secret("unit-test-key"),
+        timeout_seconds=2,
+    )
+    model = SimpleNamespace(model_identifier="unit-test-model")
+    response = _StreamingResponse([
+        b'data: {"choices":[{"delta":{"content":"Hel"}}]}\n',
+        b'data: {"choices":[{"delta":{"content":"lo"}}]}\n',
+        b"data: [DONE]\n",
+    ])
+    with patch("backend.app.services.chat_service.urlopen", return_value=response):
+        result = list(ChatService(None)._stream_complete(provider, model, "question", []))
+    assert result == ["Hel", "lo"]

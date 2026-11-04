@@ -12,6 +12,13 @@ import '../../../core/widgets/suly_brand_mark.dart';
 import '../../auth/data/auth_session.dart';
 import '../../../l10n/generated/app_localizations.dart';
 
+class _StreamResult {
+  const _StreamResult({required this.reply, this.creditBalance});
+
+  final String reply;
+  final int? creditBalance;
+}
+
 class FunctionalChatScreen extends StatefulWidget {
   const FunctionalChatScreen({super.key});
 
@@ -459,6 +466,64 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
     }
   }
 
+  Future<_StreamResult> _streamMessage(int conversationId, String text) async {
+    final request = http.Request(
+      'POST',
+      _base.resolve('/api/v1/chat/stream?conversation_id=$conversationId'),
+    );
+    request.headers.addAll(_headers());
+    request.body = jsonEncode({'message': text});
+    final response = await request.send();
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final body = _decode(await response.stream.bytesToString());
+      if (response.statusCode == 401) await _invalidateSession();
+      throw _friendlyError(response.statusCode, body);
+    }
+
+    var reply = '';
+    var assistantIndex = -1;
+    int? creditBalance;
+    try {
+      await for (final line in response.stream
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())) {
+        if (!line.startsWith('data:')) continue;
+        final raw = line.substring(5).trim();
+        if (raw.isEmpty) continue;
+        final event = jsonDecode(raw);
+        if (event is! Map<String, dynamic>) continue;
+        final error = event['error']?.toString();
+        if (error != null && error.isNotEmpty) throw error;
+        final delta = event['delta']?.toString() ?? '';
+        if (delta.isNotEmpty) {
+          reply += delta;
+          if (assistantIndex == -1) {
+            assistantIndex = _messages.length;
+            _messages.add({
+              'role': 'assistant',
+              'content': reply,
+              'created_at': DateTime.now().toIso8601String(),
+            });
+          } else {
+            _messages[assistantIndex]['content'] = reply;
+          }
+          if (mounted) setState(() {});
+          _scrollToEnd();
+        }
+        if (event['credit_balance'] is num) {
+          creditBalance = (event['credit_balance'] as num).toInt();
+        }
+      }
+    } catch (error) {
+      if (assistantIndex >= 0 && assistantIndex < _messages.length) {
+        _messages.removeAt(assistantIndex);
+      }
+      throw error;
+    }
+    if (reply.trim().isEmpty) throw _strings.emptyModelReply;
+    return _StreamResult(reply: reply, creditBalance: creditBalance);
+  }
+
   Future<void> _sendMessage() async {
     final text = _message.text.trim();
     if (text.isEmpty || _busy || _token == null) return;
@@ -480,31 +545,17 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
         _message.clear();
       });
       _scrollToEnd();
-      final response = await http.post(
-        _base.resolve('/api/v1/chat/?conversation_id=$id'),
-        headers: _headers(),
-        body: jsonEncode({'message': text}),
-      );
-      final body = _decode(response.body);
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        if (_messages.isNotEmpty && _messages.last == userMessage) {
-          _messages.removeLast();
-        }
-        throw _friendlyError(response.statusCode, body);
-      }
-      _messages.add({
-        'role': 'assistant',
-        'content': body['reply']?.toString() ?? _strings.emptyModelReply,
-        'created_at': DateTime.now().toIso8601String(),
-      });
+      final streamed = await _streamMessage(id, text);
       await _loadConversations();
-      final responseBalance = body['credit_balance'];
-      if (responseBalance is num) {
-        _creditBalance = responseBalance.toInt();
+      if (streamed.creditBalance != null) {
+        _creditBalance = streamed.creditBalance!;
       } else {
         await _loadCreditBalance();
       }
     } catch (error) {
+      if (_messages.isNotEmpty && _messages.last == userMessage) {
+        _messages.removeLast();
+      }
       _error = error.toString().replaceFirst('Exception: ', '');
     } finally {
       if (mounted) setState(() => _busy = false);

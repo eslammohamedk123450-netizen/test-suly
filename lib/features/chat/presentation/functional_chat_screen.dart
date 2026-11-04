@@ -230,6 +230,77 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
     }
   }
 
+  Future<void> _showCreditHistory() async {
+    if (_token == null || _busy) return;
+    try {
+      final data = await _get('/api/v1/auth/credits/history?limit=50');
+      final items = (data['data'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList(growable: false);
+      if (!mounted) return;
+      await showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: AppColors.surface,
+        builder: (sheetContext) => SafeArea(
+          child: SizedBox(
+            height: MediaQuery.sizeOf(sheetContext).height * 0.65,
+            child: items.isEmpty
+                ? Center(child: Text(_strings.noData))
+                : ListView.separated(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    itemCount: items.length,
+                    separatorBuilder: (_, __) =>
+                        const Divider(color: AppColors.border),
+                    itemBuilder: (_, index) {
+                      final item = items[index];
+                      final amount = (item['amount'] as num?)?.toInt() ?? 0;
+                      final balance =
+                          (item['balance_after'] as num?)?.toInt() ?? 0;
+                      final reason = item['reason']?.toString() ?? '';
+                      final createdAt = item['created_at']?.toString() ?? '';
+                      return ListTile(
+                        leading: Icon(
+                          amount >= 0 ? Icons.add_circle : Icons.remove_circle,
+                          color: amount >= 0
+                              ? AppColors.success
+                              : AppColors.primaryGold,
+                        ),
+                        title: Text(reason),
+                        subtitle: Text(createdAt),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '${amount >= 0 ? '+' : ''}$amount',
+                              style: const TextStyle(
+                                color: AppColors.text,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              _strings.creditBalance(balance),
+                              style: const TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        setState(() => _error = error.toString().replaceFirst('Exception: ', ''));
+      }
+    }
+  }
+
   Future<void> _loadMessages(int id) async {
     final response = await http.get(
       _base.resolve('/api/v1/chat/conversations/$id/messages'),
@@ -532,25 +603,29 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
               const Spacer(),
               Text(_strings.conversationLabel,
                   style: const TextStyle(color: AppColors.textMuted)),
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.bolt,
-                        size: 16, color: AppColors.primaryGold),
-                    const SizedBox(width: 3),
-                    Text('$_creditBalance',
-                        style: const TextStyle(
-                            color: AppColors.text,
-                            fontWeight: FontWeight.w600)),
-                  ],
+              InkWell(
+                onTap: _showCreditHistory,
+                borderRadius: BorderRadius.circular(18),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.bolt,
+                          size: 16, color: AppColors.primaryGold),
+                      const SizedBox(width: 3),
+                      Text('$_creditBalance',
+                          style: const TextStyle(
+                              color: AppColors.text,
+                              fontWeight: FontWeight.w600)),
+                    ],
+                  ),
                 ),
               ),
               IconButton(

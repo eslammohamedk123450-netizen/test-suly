@@ -81,9 +81,11 @@ abstract final class AppStrings {
 
   // Chat errors
   static const String chatErrorConnection = 'تعذر الاتصال بالخادم.';
-  static const String chatErrorAuth = 'انتهت جلسة الدخول. يُرجى تسجيل الدخول مجددًا.';
+  static const String chatErrorAuth =
+      'انتهت جلسة الدخول. يُرجى تسجيل الدخول مجددًا.';
   static const String chatErrorCredits = 'رصيد غير كافٍ للاستمرار.';
-  static const String chatErrorProvider = 'خدمة الذكاء الاصطناعي غير مهيأة بعد.';
+  static const String chatErrorProvider =
+      'خدمة الذكاء الاصطناعي غير مهيأة بعد.';
   static const String chatErrorTimeout = 'انتهت مهلة الاتصال بالخادم.';
   static const String chatErrorUnexpected = 'حدث خطأ غير متوقع.';
   static const String chatCopy = 'تم النسخ إلى الحافظة';

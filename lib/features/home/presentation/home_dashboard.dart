@@ -40,10 +40,11 @@ class HomeDashboard extends StatelessWidget {
                     Text(
                       'مرحبًا بك في SULY AI',
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                            color: AppColors.text,
-                            fontWeight: FontWeight.w800,
-                          ),
+                      style:
+                          Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                color: AppColors.text,
+                                fontWeight: FontWeight.w800,
+                              ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     const Text(

@@ -128,6 +128,7 @@ class _AppShell extends StatelessWidget {
     );
   }
 }
+
 class _Sidebar extends StatelessWidget {
   const _Sidebar({
     required this.collapsed,
@@ -191,15 +192,11 @@ class _Sidebar extends StatelessWidget {
                   ),
                 IconButton(
                   icon: Icon(
-                    collapsed
-                        ? Icons.chevron_right
-                        : Icons.chevron_left,
+                    collapsed ? Icons.chevron_right : Icons.chevron_left,
                     color: AppColors.textMuted,
                   ),
                   onPressed: onToggleCollapse,
-                  tooltip: collapsed
-                      ? 'توسيع القائمة'
-                      : 'طي القائمة',
+                  tooltip: collapsed ? 'توسيع القائمة' : 'طي القائمة',
                 ),
               ],
             ),
@@ -283,9 +280,7 @@ class _SidebarItem extends StatelessWidget {
               children: <Widget>[
                 Icon(
                   selected ? item.selectedIcon : item.icon,
-                  color: selected
-                      ? AppColors.primaryGold
-                      : AppColors.textMuted,
+                  color: selected ? AppColors.primaryGold : AppColors.textMuted,
                   size: 22,
                 ),
                 if (!compact) ...<Widget>[
@@ -391,6 +386,7 @@ class _ProfileArea extends StatelessWidget {
     );
   }
 }
+
 class _NarrowShell extends StatelessWidget {
   const _NarrowShell({
     required this.selectedIndex,

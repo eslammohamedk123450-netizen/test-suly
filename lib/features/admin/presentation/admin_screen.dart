@@ -202,7 +202,8 @@ class _AdminScreenState extends State<AdminScreen> {
     }
   }
 
-  Future<void> _changeModelPriority(Map<String, dynamic> model, int delta) async {
+  Future<void> _changeModelPriority(
+      Map<String, dynamic> model, int delta) async {
     final id = (model['id'] as num?)?.toInt();
     final current = (model['priority'] as num?)?.toInt() ?? 0;
     if (id == null) return;
@@ -230,15 +231,28 @@ class _AdminScreenState extends State<AdminScreen> {
   Future<void> _deleteProvider(Map<String, dynamic> provider) async {
     final id = (provider['id'] as num?)?.toInt();
     if (id == null) return;
-    final approved = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
-      title: const Text('حذف مفتاح API'),
-      content: Text('سيتم حذف اتصال "${provider['name'] ?? ''}" والنماذج التابعة له.'),
-      actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(_strings.cancel)),
-        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('حذف'))],
-    ));
+    final approved = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+              title: const Text('حذف مفتاح API'),
+              content: Text(
+                  'سيتم حذف اتصال "${provider['name'] ?? ''}" والنماذج التابعة له.'),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: Text(_strings.cancel)),
+                FilledButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text('حذف'))
+              ],
+            ));
     if (approved != true) return;
-    try { await _api.deleteProvider(id); await _loadSection('providers'); }
-    catch (error) { if (mounted) setState(() => _error = error.toString()); }
+    try {
+      await _api.deleteProvider(id);
+      await _loadSection('providers');
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    }
   }
 
   Future<void> _adjustUserCredits(Map<String, dynamic> user) async {
@@ -246,19 +260,44 @@ class _AdminScreenState extends State<AdminScreen> {
     if (id == null) return;
     final amount = TextEditingController();
     final reason = TextEditingController(text: 'تعديل رصيد بواسطة الإدارة');
-    final values = await showDialog<(int, String)>(context: context, builder: (ctx) => AlertDialog(
-      title: Text('تعديل رصيد ${user['email'] ?? ''}'),
-      content: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: amount, keyboardType: const TextInputType.numberWithOptions(signed: true), decoration: const InputDecoration(labelText: 'المبلغ (+ إضافة، - خصم)')),
-        TextField(controller: reason, decoration: const InputDecoration(labelText: 'السبب')),
-      ]),
-      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(_strings.cancel)),
-        FilledButton(onPressed: () { final n = int.tryParse(amount.text); if (n != null && n != 0) Navigator.pop(ctx, (n, reason.text.trim())); }, child: const Text('تطبيق'))],
-    ));
-    amount.dispose(); reason.dispose();
+    final values = await showDialog<(int, String)>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+              title: Text('تعديل رصيد ${user['email'] ?? ''}'),
+              content: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextField(
+                    controller: amount,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(signed: true),
+                    decoration: const InputDecoration(
+                        labelText: 'المبلغ (+ إضافة، - خصم)')),
+                TextField(
+                    controller: reason,
+                    decoration: const InputDecoration(labelText: 'السبب')),
+              ]),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text(_strings.cancel)),
+                FilledButton(
+                    onPressed: () {
+                      final n = int.tryParse(amount.text);
+                      if (n != null && n != 0)
+                        Navigator.pop(ctx, (n, reason.text.trim()));
+                    },
+                    child: const Text('تطبيق'))
+              ],
+            ));
+    amount.dispose();
+    reason.dispose();
     if (values == null) return;
-    try { await _api.adjustCredits(id, values.$1, values.$2.isEmpty ? 'تعديل إداري' : values.$2); await _loadSection('users'); }
-    catch (error) { if (mounted) setState(() => _error = error.toString()); }
+    try {
+      await _api.adjustCredits(
+          id, values.$1, values.$2.isEmpty ? 'تعديل إداري' : values.$2);
+      await _loadSection('users');
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString());
+    }
   }
 
   @override
@@ -410,7 +449,8 @@ class _AdminScreenState extends State<AdminScreen> {
   Widget _sectionWidget() {
     return switch (_section) {
       'overview' => _Overview(data: _data! as Map<String, dynamic>),
-      'users' => _UsersList(items: _data! as List<dynamic>, onAdjust: _adjustUserCredits),
+      'users' => _UsersList(
+          items: _data! as List<dynamic>, onAdjust: _adjustUserCredits),
       'providers' => _SimpleList(
           items: _data! as List<dynamic>,
           empty: _strings.noProviders,
@@ -665,7 +705,11 @@ class _UsersList extends StatelessWidget {
           subtitle: Text(
               '${email} • ${strings.creditBalance((item['credit_balance'] as num?)?.toInt() ?? 0)}',
               style: const TextStyle(color: AppColors.textMuted)),
-          trailing: IconButton(tooltip: 'تعديل الرصيد', onPressed: () => onAdjust(item), icon: const Icon(Icons.account_balance_wallet_outlined, color: AppColors.primaryGold)),
+          trailing: IconButton(
+              tooltip: 'تعديل الرصيد',
+              onPressed: () => onAdjust(item),
+              icon: const Icon(Icons.account_balance_wallet_outlined,
+                  color: AppColors.primaryGold)),
         );
       },
     );
@@ -677,7 +721,10 @@ class _SimpleList extends StatelessWidget {
       {required this.items,
       required this.empty,
       required this.titleKey,
-      required this.subtitleKey, this.onDelete, this.onPriority, this.onToggleEnabled});
+      required this.subtitleKey,
+      this.onDelete,
+      this.onPriority,
+      this.onToggleEnabled});
   final List<dynamic> items;
   final String empty;
   final String titleKey;
@@ -691,8 +738,10 @@ class _SimpleList extends StatelessWidget {
     final strings = AppLocalizations.of(context);
     if (items.isEmpty) return _EmptyState(message: empty);
     final hasModelReport = onPriority != null;
-    final autoDisabledCount = items.where((value) =>
-        (value as Map<String, dynamic>)['auto_disabled'] == true).length;
+    final autoDisabledCount = items
+        .where(
+            (value) => (value as Map<String, dynamic>)['auto_disabled'] == true)
+        .length;
     final locale = Localizations.localeOf(context).languageCode;
     return ListView.separated(
       itemCount: items.length + (hasModelReport ? 1 : 0),
@@ -706,7 +755,9 @@ class _SimpleList extends StatelessWidget {
             margin: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
             padding: const EdgeInsets.all(AppSpacing.md),
             decoration: BoxDecoration(
-              color: autoDisabledCount > 0 ? AppColors.error.withValues(alpha: 0.08) : AppColors.surfaceSecondary,
+              color: autoDisabledCount > 0
+                  ? AppColors.error.withValues(alpha: 0.08)
+                  : AppColors.surfaceSecondary,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.border),
             ),
@@ -717,7 +768,6 @@ class _SimpleList extends StatelessWidget {
         final item = items[itemIndex] as Map<String, dynamic>;
         final enabled = item['enabled'] == true || item['is_active'] == true;
         final keyStatus = item['masked_key']?.toString();
-        final locale = Localizations.localeOf(context).languageCode;
         final healthStatus = item['last_response_status']?.toString();
         final latency = item['last_response_latency_ms'] as num?;
         final failures = item['consecutive_failures'] ?? 0;
@@ -733,13 +783,17 @@ class _SimpleList extends StatelessWidget {
               : healthStatus == 'slow'
                   ? (locale == 'ar' ? 'متأخر' : 'slow')
                   : (locale == 'ar' ? 'فشل' : 'error');
-          reportLines.add('${locale == 'ar' ? 'الحالة' : 'Status'}: $statusLabel • ${locale == 'ar' ? 'أول رد' : 'first token'}: ${latency == null ? '—' : '${latency.toStringAsFixed(0)} ms'} • ${locale == 'ar' ? 'تتابع الإخفاق' : 'failure streak'}: $failures');
+          reportLines.add(
+              '${locale == 'ar' ? 'الحالة' : 'Status'}: $statusLabel • ${locale == 'ar' ? 'أول رد' : 'first token'}: ${latency == null ? '—' : '${latency.toStringAsFixed(0)} ms'} • ${locale == 'ar' ? 'تتابع الإخفاق' : 'failure streak'}: $failures');
           if (item['auto_disabled'] == true) {
             final reason = item['last_response_error']?.toString();
-            reportLines.add('${locale == 'ar' ? 'معطّل تلقائيًا بعد 3 إخفاقات متتالية' : 'Auto-disabled after 3 consecutive misses'}${reason == null ? '' : ': $reason'}');
+            reportLines.add(
+                '${locale == 'ar' ? 'معطّل تلقائيًا بعد 3 إخفاقات متتالية' : 'Auto-disabled after 3 consecutive misses'}${reason == null ? '' : ': $reason'}');
           }
         }
-        final subtitle = [baseSubtitle, ...reportLines].where((line) => line.isNotEmpty).join('\n');
+        final subtitle = [baseSubtitle, ...reportLines]
+            .where((line) => line.isNotEmpty)
+            .join('\n');
         return ListTile(
           leading: Icon(
             Icons.circle,
@@ -756,20 +810,42 @@ class _SimpleList extends StatelessWidget {
               style: const TextStyle(color: AppColors.textMuted)),
           trailing: onPriority != null
               ? Row(mainAxisSize: MainAxisSize.min, children: [
-                  Text('${item['priority'] ?? 0}', style: const TextStyle(color: AppColors.textMuted)),
-                  IconButton(tooltip: 'أولوية أعلى', onPressed: () => onPriority!(item, -1), icon: const Icon(Icons.keyboard_arrow_up)),
-                  IconButton(tooltip: 'أولوية أقل', onPressed: () => onPriority!(item, 1), icon: const Icon(Icons.keyboard_arrow_down)),
+                  Text('${item['priority'] ?? 0}',
+                      style: const TextStyle(color: AppColors.textMuted)),
+                  IconButton(
+                      tooltip: 'أولوية أعلى',
+                      onPressed: () => onPriority!(item, -1),
+                      icon: const Icon(Icons.keyboard_arrow_up)),
+                  IconButton(
+                      tooltip: 'أولوية أقل',
+                      onPressed: () => onPriority!(item, 1),
+                      icon: const Icon(Icons.keyboard_arrow_down)),
                   if (onToggleEnabled != null)
                     IconButton(
-                      tooltip: enabled ? (locale == 'ar' ? 'إيقاف النموذج' : 'Disable model') : (locale == 'ar' ? 'إعادة تفعيل النموذج' : 'Enable model'),
+                      tooltip: enabled
+                          ? (locale == 'ar' ? 'إيقاف النموذج' : 'Disable model')
+                          : (locale == 'ar'
+                              ? 'إعادة تفعيل النموذج'
+                              : 'Enable model'),
                       onPressed: () => onToggleEnabled!(item),
-                      icon: Icon(enabled ? Icons.pause_circle_outline : Icons.play_circle_outline,
-                          color: enabled ? AppColors.textMuted : AppColors.success),
+                      icon: Icon(
+                          enabled
+                              ? Icons.pause_circle_outline
+                              : Icons.play_circle_outline,
+                          color: enabled
+                              ? AppColors.textMuted
+                              : AppColors.success),
                     ),
                 ])
               : onDelete == null
-                  ? Text(enabled ? strings.active : strings.inactive, style: TextStyle(color: enabled ? Colors.green : AppColors.textMuted))
-                  : IconButton(tooltip: 'حذف اتصال API', onPressed: () => onDelete!(item), icon: const Icon(Icons.delete_outline, color: AppColors.error)),
+                  ? Text(enabled ? strings.active : strings.inactive,
+                      style: TextStyle(
+                          color: enabled ? Colors.green : AppColors.textMuted))
+                  : IconButton(
+                      tooltip: 'حذف اتصال API',
+                      onPressed: () => onDelete!(item),
+                      icon: const Icon(Icons.delete_outline,
+                          color: AppColors.error)),
         );
       },
     );

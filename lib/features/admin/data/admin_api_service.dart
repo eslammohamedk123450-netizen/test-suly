@@ -78,13 +78,19 @@ class AdminApiService {
 
   Future<void> deleteProvider(int id) async {
     _assertSecureTransport();
-    final response = await http.delete(Uri.parse('${ApiConfig.baseUrl}/api/v1/admin/providers/$id'), headers: _headers);
+    final response = await http.delete(
+        Uri.parse('${ApiConfig.baseUrl}/api/v1/admin/providers/$id'),
+        headers: _headers);
     _ensureOk(response);
   }
 
-  Future<Map<String, dynamic>> adjustCredits(int userId, int amount, String reason) async {
+  Future<Map<String, dynamic>> adjustCredits(
+      int userId, int amount, String reason) async {
     _assertSecureTransport();
-    final response = await http.post(Uri.parse('${ApiConfig.baseUrl}/api/v1/admin/users/$userId/credits'), headers: _headers, body: jsonEncode({'amount': amount, 'reason': reason}));
+    final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/v1/admin/users/$userId/credits'),
+        headers: _headers,
+        body: jsonEncode({'amount': amount, 'reason': reason}));
     _ensureOk(response);
     return jsonDecode(response.body) as Map<String, dynamic>;
   }

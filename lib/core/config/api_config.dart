@@ -20,4 +20,3 @@ class ApiConfig {
   /// مسار نقطة نهاية المحادثة الكامل.
   static const String chatEndpoint = '/api/v1/chat/';
 }
-

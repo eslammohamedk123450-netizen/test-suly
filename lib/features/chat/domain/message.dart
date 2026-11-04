@@ -53,9 +53,7 @@ class Message {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is Message &&
-          runtimeType == other.runtimeType &&
-          id == other.id;
+      other is Message && runtimeType == other.runtimeType && id == other.id;
 
   @override
   int get hashCode => id.hashCode;
@@ -63,8 +61,8 @@ class Message {
 
 /// حالة رسالة المحادثة.
 enum MessageStatus {
-  sending,   // جاري الإرسال
-  sent,      // تم الإرسال واستلام الرد
-  failed,    // فشل الإرسال
+  sending, // جاري الإرسال
+  sent, // تم الإرسال واستلام الرد
+  failed, // فشل الإرسال
   regenerating, // جاري إعادة التوليد
 }

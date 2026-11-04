@@ -43,7 +43,10 @@ class _AuthGateDialogState extends State<_AuthGateDialog> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       if (_registerMode) {
         await _api.register(
@@ -67,7 +70,8 @@ class _AuthGateDialogState extends State<_AuthGateDialog> {
       textDirection: TextDirection.rtl,
       child: AlertDialog(
         backgroundColor: AppColors.surface,
-        title: Text(_registerMode ? 'إنشاء حساب للمحادثة' : 'سجّل الدخول للمتابعة'),
+        title: Text(
+            _registerMode ? 'إنشاء حساب للمحادثة' : 'سجّل الدخول للمتابعة'),
         content: SizedBox(
           width: 420,
           child: SingleChildScrollView(
@@ -83,7 +87,8 @@ class _AuthGateDialogState extends State<_AuthGateDialog> {
                   TextFormField(
                     controller: _fullName,
                     textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(labelText: 'الاسم (اختياري)'),
+                    decoration:
+                        const InputDecoration(labelText: 'الاسم (اختياري)'),
                   ),
                 ],
                 const SizedBox(height: AppSpacing.md),
@@ -91,7 +96,8 @@ class _AuthGateDialogState extends State<_AuthGateDialog> {
                   controller: _email,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(labelText: 'البريد الإلكتروني'),
+                  decoration:
+                      const InputDecoration(labelText: 'البريد الإلكتروني'),
                   validator: (value) => value == null || !value.contains('@')
                       ? 'أدخل بريدًا إلكترونيًا صالحًا'
                       : null,
@@ -105,13 +111,18 @@ class _AuthGateDialogState extends State<_AuthGateDialog> {
                     labelText: 'كلمة المرور',
                     helperText: _registerMode ? 'ثمانية أحرف على الأقل' : null,
                     suffixIcon: IconButton(
-                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                      icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
+                      icon: Icon(_obscurePassword
+                          ? Icons.visibility
+                          : Icons.visibility_off),
                     ),
                   ),
                   validator: (value) {
-                    if (value == null || value.isEmpty) return 'أدخل كلمة المرور';
-                    if (_registerMode && value.length < 8) return 'الحد الأدنى 8 أحرف';
+                    if (value == null || value.isEmpty)
+                      return 'أدخل كلمة المرور';
+                    if (_registerMode && value.length < 8)
+                      return 'الحد الأدنى 8 أحرف';
                     return null;
                   },
                 ),
@@ -119,7 +130,8 @@ class _AuthGateDialogState extends State<_AuthGateDialog> {
                   const SizedBox(height: AppSpacing.md),
                   Align(
                     alignment: Alignment.centerRight,
-                    child: Text(_error!, style: const TextStyle(color: AppColors.error)),
+                    child: Text(_error!,
+                        style: const TextStyle(color: AppColors.error)),
                   ),
                 ],
               ]),
@@ -134,14 +146,19 @@ class _AuthGateDialogState extends State<_AuthGateDialog> {
           TextButton(
             onPressed: _loading
                 ? null
-                : () => setState(() { _registerMode = !_registerMode; _error = null; }),
+                : () => setState(() {
+                      _registerMode = !_registerMode;
+                      _error = null;
+                    }),
             child: Text(_registerMode ? 'لدي حساب' : 'إنشاء حساب'),
           ),
           FilledButton(
             onPressed: _loading ? null : _submit,
             child: Text(_loading
                 ? 'جارٍ الاتصال...'
-                : _registerMode ? 'إنشاء وتسجيل الدخول' : 'تسجيل الدخول'),
+                : _registerMode
+                    ? 'إنشاء وتسجيل الدخول'
+                    : 'تسجيل الدخول'),
           ),
         ],
       ),

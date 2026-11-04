@@ -47,7 +47,8 @@ class InMemoryConversationRepository implements ConversationRepository {
   Future<void> renameConversation(String id, String newTitle) async {
     final conversation = _conversations[id];
     if (conversation == null) return;
-    conversation.title = newTitle.trim().isEmpty ? 'محادثة جديدة' : newTitle.trim();
+    conversation.title =
+        newTitle.trim().isEmpty ? 'محادثة جديدة' : newTitle.trim();
     conversation.updatedAt = DateTime.now();
   }
 
@@ -65,7 +66,9 @@ class InMemoryConversationRepository implements ConversationRepository {
     String conversationId,
     String messageId,
     Message newMessage,
-  ) async => _conversations[conversationId]?.replaceMessage(messageId, newMessage) ?? false;
+  ) async =>
+      _conversations[conversationId]?.replaceMessage(messageId, newMessage) ??
+      false;
 
   @override
   Future<bool> removeMessage(String conversationId, String messageId) async =>
@@ -138,7 +141,8 @@ class ApiConversationRepository implements ConversationRepository {
     String conversationId,
     String messageId,
     Message newMessage,
-  ) async => _cache[conversationId]?.replaceMessage(messageId, newMessage) ?? false;
+  ) async =>
+      _cache[conversationId]?.replaceMessage(messageId, newMessage) ?? false;
 
   @override
   Future<bool> removeMessage(String conversationId, String messageId) async =>

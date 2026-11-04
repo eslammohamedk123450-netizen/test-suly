@@ -80,7 +80,7 @@ class _SulyShellState extends State<_SulyShell> {
   late int _index = switch (Uri.base.queryParameters['screen']) {
     'chat' => 1,
     'admin' => 2,
-    _ => 1,
+    _ => 0,
   };
 
   @override

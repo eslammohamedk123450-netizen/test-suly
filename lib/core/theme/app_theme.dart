@@ -44,7 +44,8 @@ abstract final class AppTheme {
           side: const BorderSide(color: AppColors.darkBorder),
         ),
       ),
-      drawerTheme: const DrawerThemeData(backgroundColor: AppColors.darkSurface),
+      drawerTheme:
+          const DrawerThemeData(backgroundColor: AppColors.darkSurface),
       navigationRailTheme: const NavigationRailThemeData(
         backgroundColor: AppColors.darkSurface,
         selectedIconTheme: IconThemeData(color: AppColors.darkGold),
@@ -90,8 +91,7 @@ abstract final class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadii.md),
-          borderSide:
-              const BorderSide(color: AppColors.darkGold, width: 1.4),
+          borderSide: const BorderSide(color: AppColors.darkGold, width: 1.4),
         ),
         labelStyle: const TextStyle(color: AppColors.darkTextMuted),
         hintStyle: const TextStyle(color: AppColors.darkTextMuted),

@@ -148,6 +148,7 @@ def chat(
 def stream_chat(
     request: ChatRequest,
     conversation_id: int | None = None,
+    regenerate: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_record),
     _rate_info=Depends(check_rate_limit),
@@ -162,6 +163,11 @@ def stream_chat(
             detail="Insufficient credit balance. Please add credits to continue.",
         )
 
+    if regenerate and conversation_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="A conversation is required when regenerating a response.",
+        )
     conversation = (
         _conversation_or_404(db, conversation_id, current_user.id)
         if conversation_id is not None
@@ -205,12 +211,13 @@ def stream_chat(
                 yield f"data: {json.dumps({'error': 'Insufficient credit balance.'})}\n\n"
                 return
             current_user.credit_balance = new_balance
-            db.add(Message(
-                conversation_id=conversation.id,
-                user_id=current_user.id,
-                role="user",
-                content=message_text,
-            ))
+            if not regenerate:
+                db.add(Message(
+                    conversation_id=conversation.id,
+                    user_id=current_user.id,
+                    role="user",
+                    content=message_text,
+                ))
             db.add(Message(
                 conversation_id=conversation.id,
                 user_id=current_user.id,

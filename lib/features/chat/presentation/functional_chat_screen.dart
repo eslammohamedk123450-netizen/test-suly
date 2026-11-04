@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -474,10 +475,17 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
     }
   }
 
-  Future<_StreamResult> _streamMessage(int conversationId, String text) async {
+  Future<_StreamResult> _streamMessage(
+    int conversationId,
+    String text, {
+    bool regenerate = false,
+  }) async {
     final request = http.Request(
       'POST',
-      _base.resolve('/api/v1/chat/stream?conversation_id=$conversationId'),
+      _base.resolve(
+        '/api/v1/chat/stream?conversation_id=$conversationId'
+        '${regenerate ? '&regenerate=true' : ''}',
+      ),
     );
     request.headers.addAll(_headers());
     request.body = jsonEncode({'message': text});
@@ -546,6 +554,56 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
     _stopRequested = true;
     _streamClient!.close();
     if (mounted) setState(() => _error = null);
+  }
+
+  Future<void> _regenerateMessage(int assistantIndex) async {
+    if (_busy || _conversationId == null || assistantIndex <= 0) return;
+    var userIndex = assistantIndex - 1;
+    while (userIndex >= 0 && _messages[userIndex]['role'] != 'user') {
+      userIndex--;
+    }
+    if (userIndex < 0) return;
+    final prompt = _messages[userIndex]['content']?.toString().trim() ?? '';
+    if (prompt.isEmpty) return;
+
+    setState(() {
+      _messages.removeAt(assistantIndex);
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final streamed = await _streamMessage(
+        _conversationId!,
+        prompt,
+        regenerate: true,
+      );
+      if (!streamed.stopped) await _loadConversations();
+      if (streamed.creditBalance != null) {
+        _creditBalance = streamed.creditBalance!;
+      } else if (!streamed.stopped) {
+        await _loadCreditBalance();
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => _error = error.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+      _scrollToEnd();
+    }
+  }
+
+  Future<void> _copyMessage(String text) async {
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(Localizations.localeOf(context).languageCode == 'ar'
+            ? 'تم نسخ الرسالة'
+            : 'Message copied'),
+        duration: const Duration(seconds: 1),
+      ),
+    );
   }
 
   Future<void> _sendMessage() async {
@@ -904,12 +962,49 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
                           borderRadius: BorderRadius.circular(18),
                           border: Border.all(color: AppColors.border),
                         ),
-                        child: SelectableText(
-                          message['content']?.toString() ?? '',
-                          style: const TextStyle(
-                              color: AppColors.text, height: 1.5),
-                          textDirection: _textDirection(
-                              message['content']?.toString() ?? ''),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SelectableText(
+                              message['content']?.toString() ?? '',
+                              style: const TextStyle(
+                                  color: AppColors.text, height: 1.5),
+                              textDirection: _textDirection(
+                                  message['content']?.toString() ?? ''),
+                            ),
+                            if (!isUser &&
+                                (message['content']?.toString().isNotEmpty ?? false))
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    tooltip: Localizations.localeOf(context)
+                                                .languageCode ==
+                                            'ar'
+                                        ? 'نسخ'
+                                        : 'Copy',
+                                    onPressed: _busy
+                                        ? null
+                                        : () => _copyMessage(
+                                            message['content']!.toString()),
+                                    icon: const Icon(Icons.copy_outlined, size: 17),
+                                  ),
+                                  IconButton(
+                                    visualDensity: VisualDensity.compact,
+                                    tooltip: Localizations.localeOf(context)
+                                                .languageCode ==
+                                            'ar'
+                                        ? 'إعادة التوليد'
+                                        : 'Regenerate',
+                                    onPressed: _busy
+                                        ? null
+                                        : () => _regenerateMessage(index),
+                                    icon: const Icon(Icons.refresh, size: 18),
+                                  ),
+                                ],
+                              ),
+                          ],
                         ),
                       ),
                     );

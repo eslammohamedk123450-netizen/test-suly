@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     password_hash_algorithm: str = "sha256"
     upload_dir: str = "./.suly_uploads"
     max_upload_size_bytes: int = 10 * 1024 * 1024
+    # API-first racing timings. Browser workers remain opt-in and site-specific.
+    free_provider_grace_period: float = 3.0
+    browser_prepare_at: float = 2.0
+    web_provider_timeout: float = 60.0
+    first_valid_chunk_required: bool = True
     allowed_upload_content_types: list[str] = [
         "application/pdf", "text/plain", "text/markdown", "text/csv",
         "application/json", "image/png", "image/jpeg", "image/webp",

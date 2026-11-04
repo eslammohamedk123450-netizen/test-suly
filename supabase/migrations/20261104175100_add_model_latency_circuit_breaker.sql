@@ -13,3 +13,5 @@ ALTER TABLE public.ai_models
 UPDATE public.alembic_version
 SET version_num = 'b3c7d1e9f204'
 WHERE version_num = '2b8f9d1c4a61';
+
+-- The racing telemetry migration advances this value to c4d8e2f1a903.

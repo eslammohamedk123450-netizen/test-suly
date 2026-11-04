@@ -11,6 +11,7 @@ from urllib.request import Request, urlopen
 
 from sqlalchemy.orm import Session
 
+from backend.app.core.config import settings
 from backend.app.db.models.admin import AIModel, AIProvider
 from backend.app.services.admin_security import decrypt_secret
 from backend.app.services.provider_catalog import PROVIDER_BASE_URLS as CATALOG_BASE_URLS
@@ -99,7 +100,7 @@ class ChatService:
         history: list[dict[str, str]] | None = None,
         attachments: list[dict] | None = None,
         *,
-        first_token_timeout: float = 3.0,
+        first_token_timeout: float | None = None,
     ) -> Iterator[str]:
         """Race every enabled model; stream the first model's response immediately.
 
@@ -107,6 +108,11 @@ class ChatService:
         its first text delta inside the shared deadline. Slow/error streaks are
         persisted and quarantined after three consecutive misses.
         """
+        first_token_timeout = (
+            settings.free_provider_grace_period
+            if first_token_timeout is None
+            else first_token_timeout
+        )
         candidates = self._candidates()
         if not candidates:
             raise ChatProviderError("No enabled AI provider/model is configured.")

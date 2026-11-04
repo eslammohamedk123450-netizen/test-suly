@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from backend.app.auth.router import get_current_user_record
 from backend.app.db.models.admin import AIModel, AIProvider, Conversation, CreditTransaction, Message
 from backend.app.db.models.chat_request import ChatRequestRecord
+from backend.app.db.models.racing import RacingRequest
 from backend.app.db.models.usage import UsageRecord
 from backend.app.db.models.user import User
 from backend.app.db.models.file import UserFile
@@ -277,6 +278,17 @@ def stream_chat(
     request_record_id = request_record.id
     db.commit()
     started_at = perf_counter()
+    race_started_at = datetime.now(timezone.utc)
+    racing_record = RacingRequest(
+        request_id=request_key,
+        user_id=current_user.id,
+        conversation_id=conversation.id,
+        status="started",
+        started_at=race_started_at,
+    )
+    db.add(racing_record)
+    db.commit()
+    racing_record_id = racing_record.id
     user_id = current_user.id
     recent_messages = (
         db.query(Message)
@@ -294,13 +306,23 @@ def stream_chat(
 
     def events() -> Iterator[str]:
         chunks: list[str] = []
+        first_token_at: datetime | None = None
         try:
+            yield f"data: {json.dumps({'event': 'request_started', 'request_id': request_key}, ensure_ascii=False)}\n\n"
             chat_service = ChatService(db)
             prompt = message_text or "Please analyze the attached file(s)."
             response_stream = chat_service.stream_reply_fastest(prompt, history, attachments)
             for delta in response_stream:
                 chunks.append(delta)
-                yield f"data: {json.dumps({'delta': delta}, ensure_ascii=False)}\n\n"
+                if first_token_at is None:
+                    first_token_at = datetime.now(timezone.utc)
+                    db.execute(
+                        update(RacingRequest)
+                        .where(RacingRequest.id == racing_record_id)
+                        .values(first_token_at=first_token_at, status="streaming")
+                    )
+                    db.commit()
+                yield f"data: {json.dumps({'event': 'content_delta', 'request_id': request_key, 'delta': delta}, ensure_ascii=False)}\n\n"
             reply = "".join(chunks).strip()
             if not reply:
                 raise ChatProviderError("The provider returned an empty response.")
@@ -318,6 +340,16 @@ def stream_chat(
                     .where(ChatRequestRecord.id == request_record_id)
                     .values(reply="".join(chunks), status="failed")
                 )
+                db.execute(
+                    update(RacingRequest)
+                    .where(RacingRequest.id == racing_record_id)
+                    .values(
+                        status="failed",
+                        completed_at=datetime.now(timezone.utc),
+                        total_duration_ms=(perf_counter() - started_at) * 1000,
+                        error_message="Insufficient credit balance",
+                    )
+                )
                 db.add(UsageRecord(
                     user_id=user_id,
                     request_id=request_key,
@@ -327,7 +359,7 @@ def stream_chat(
                     credits_consumed=0,
                 ))
                 db.commit()
-                yield f"data: {json.dumps({'error': 'Insufficient credit balance.'})}\n\n"
+                yield f"data: {json.dumps({'event': 'stream_error', 'request_id': request_key, 'error': 'Insufficient credit balance.'})}\n\n"
                 return
             db.execute(
                 update(ChatRequestRecord)
@@ -364,9 +396,18 @@ def stream_chat(
                 duration_ms=(perf_counter() - started_at) * 1000,
                 credits_consumed=1,
             ))
+            db.execute(
+                update(RacingRequest)
+                .where(RacingRequest.id == racing_record_id)
+                .values(
+                    status="completed",
+                    completed_at=datetime.now(timezone.utc),
+                    total_duration_ms=(perf_counter() - started_at) * 1000,
+                )
+            )
             conversation.updated_at = datetime.now(timezone.utc)
             db.commit()
-            yield f"data: {json.dumps({'done': True, 'credit_balance': new_balance})}\n\n"
+            yield f"data: {json.dumps({'event': 'stream_completed', 'request_id': request_key, 'done': True, 'credit_balance': new_balance})}\n\n"
         except Exception as exc:
             db.rollback()
             db.execute(
@@ -382,8 +423,18 @@ def stream_chat(
                 duration_ms=(perf_counter() - started_at) * 1000,
                 credits_consumed=0,
             ))
+            db.execute(
+                update(RacingRequest)
+                .where(RacingRequest.id == racing_record_id)
+                .values(
+                    status="failed",
+                    completed_at=datetime.now(timezone.utc),
+                    total_duration_ms=(perf_counter() - started_at) * 1000,
+                    error_message=str(exc)[:500],
+                )
+            )
             db.commit()
-            yield f"data: {json.dumps({'error': str(exc)})}\n\n"
+            yield f"data: {json.dumps({'event': 'stream_error', 'request_id': request_key, 'error': str(exc)})}\n\n"
         finally:
             db.close()
 

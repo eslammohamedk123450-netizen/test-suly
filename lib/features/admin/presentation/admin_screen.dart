@@ -1,8 +1,22 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/suly_brand_mark.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../l10n/generated/app_localizations.dart';
 import '../data/admin_api_service.dart';
+
+String _adminSectionLabel(AppLocalizations strings, String section) =>
+    switch (section) {
+      'overview' => strings.adminOverview,
+      'users' => strings.adminUsers,
+      'providers' => strings.adminProviders,
+      'models' => strings.adminModels,
+      'plans' => strings.adminPlans,
+      'settings' => strings.adminSettings,
+      'audit' => strings.adminAudit,
+      _ => strings.adminTitle,
+    };
 
 class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key});
@@ -26,6 +40,7 @@ class _AdminScreenState extends State<AdminScreen> {
   bool _loggedIn = false;
   bool _loading = false;
   String? _error;
+  AppLocalizations get _strings => AppLocalizations.of(context);
 
   @override
   void dispose() {
@@ -87,7 +102,7 @@ class _AdminScreenState extends State<AdminScreen> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, dialogSetState) => AlertDialog(
           backgroundColor: AppColors.surface,
-          title: const Text('إضافة مزود ذكاء اصطناعي'),
+          title: Text(_strings.addProviderTitle),
           content: SizedBox(
             width: 460,
             child: SingleChildScrollView(
@@ -96,18 +111,18 @@ class _AdminScreenState extends State<AdminScreen> {
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   TextFormField(
                     controller: connectionName,
-                    decoration: const InputDecoration(
-                      labelText: 'اسم لتمييز الاتصال',
-                      hintText: 'مثال: Groq الرئيسي',
+                    decoration: InputDecoration(
+                      labelText: _strings.connectionName,
+                      hintText: _strings.connectionNameExample,
                     ),
                     validator: (value) => value == null || value.trim().isEmpty
-                        ? 'اكتب اسمًا للاتصال'
+                        ? _strings.connectionNameRequired
                         : null,
                   ),
                   const SizedBox(height: AppSpacing.md),
                   DropdownButtonFormField<String>(
                     initialValue: providerType,
-                    decoration: const InputDecoration(labelText: 'مزود الخدمة'),
+                    decoration: InputDecoration(labelText: _strings.provider),
                     items: _providerLabels.entries
                         .map((entry) => DropdownMenuItem(
                               value: entry.key,
@@ -125,18 +140,19 @@ class _AdminScreenState extends State<AdminScreen> {
                     obscureText: true,
                     autocorrect: false,
                     enableSuggestions: false,
-                    decoration: const InputDecoration(
-                      labelText: 'مفتاح API',
-                      helperText: 'يُحفظ مشفرًا على الخادم ولا يُعرض كاملًا.',
+                    decoration: InputDecoration(
+                      labelText: _strings.apiKey,
+                      helperText: _strings.encryptedKeyHint,
                     ),
                     validator: (value) => value == null || value.trim().isEmpty
-                        ? 'أدخل مفتاح API من حسابك لدى المزود'
+                        ? _strings.apiKeyRequired
                         : null,
                   ),
                   const SizedBox(height: AppSpacing.md),
-                  const Text(
-                    'سنكتشف النماذج تلقائيًا. عند رفض نموذج لطلب المحادثة، ينتقل التطبيق للتالي ويتوقف عند أول رد ناجح. قد تُطبق حدود أو رسوم المزود على محاولات الطلب.',
-                    style: TextStyle(color: AppColors.textMuted, height: 1.45),
+                  Text(
+                    _strings.providerSetupHelp,
+                    style: const TextStyle(
+                        color: AppColors.textMuted, height: 1.45),
                   ),
                 ]),
               ),
@@ -145,7 +161,7 @@ class _AdminScreenState extends State<AdminScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('إلغاء'),
+              child: Text(_strings.cancel),
             ),
             FilledButton(
               onPressed: () {
@@ -156,7 +172,7 @@ class _AdminScreenState extends State<AdminScreen> {
                   'api_key': apiKey.text.trim(),
                 });
               },
-              child: const Text('اكتشف النماذج واحفظ'),
+              child: Text(_strings.discoverAndSave),
             ),
           ],
         ),
@@ -176,7 +192,7 @@ class _AdminScreenState extends State<AdminScreen> {
       if (mounted) {
         final count = result['models_imported'] ?? 0;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تم حفظ الاتصال واكتشاف $count نموذجًا.')),
+          SnackBar(content: Text(_strings.providerSavedCount(count))),
         );
       }
     } catch (error) {
@@ -188,12 +204,9 @@ class _AdminScreenState extends State<AdminScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        backgroundColor: AppColors.background,
-        body: _loggedIn ? _buildDashboard() : _buildLogin(),
-      ),
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: _loggedIn ? _buildDashboard() : _buildLogin(),
     );
   }
 
@@ -210,16 +223,14 @@ class _AdminScreenState extends State<AdminScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                const Icon(Icons.admin_panel_settings,
-                    color: AppColors.primaryGold, size: 54),
+                const SulyBrandMark(size: 58),
                 const SizedBox(height: AppSpacing.md),
-                Text('دخول لوحة الإدارة',
+                Text(_strings.adminSignIn,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         color: AppColors.text, fontWeight: FontWeight.w800)),
                 const SizedBox(height: AppSpacing.xs),
-                Text(
-                    'الوصول محمي بصلاحيات Backend. لا توجد كلمة مرور افتراضية.',
+                Text(_strings.adminProtected,
                     textAlign: TextAlign.center,
                     style: Theme.of(context)
                         .textTheme
@@ -229,17 +240,18 @@ class _AdminScreenState extends State<AdminScreen> {
                 TextField(
                     controller: _email,
                     keyboardType: TextInputType.emailAddress,
-                    decoration: const InputDecoration(
-                        labelText: 'البريد الإلكتروني',
-                        prefixIcon: Icon(Icons.email_outlined))),
+                    textDirection: TextDirection.ltr,
+                    decoration: InputDecoration(
+                        labelText: _strings.email,
+                        prefixIcon: const Icon(Icons.email_outlined))),
                 const SizedBox(height: AppSpacing.md),
                 TextField(
                     controller: _password,
                     obscureText: true,
                     onSubmitted: (_) => _login(),
-                    decoration: const InputDecoration(
-                        labelText: 'كلمة المرور',
-                        prefixIcon: Icon(Icons.lock_outline))),
+                    decoration: InputDecoration(
+                        labelText: _strings.password,
+                        prefixIcon: const Icon(Icons.lock_outline))),
                 if (_error != null) ...<Widget>[
                   const SizedBox(height: AppSpacing.md),
                   _ErrorBox(message: _error!),
@@ -248,7 +260,8 @@ class _AdminScreenState extends State<AdminScreen> {
                 FilledButton.icon(
                     onPressed: _loading ? null : _login,
                     icon: const Icon(Icons.login),
-                    label: Text(_loading ? 'جارٍ التحقق...' : 'تسجيل الدخول')),
+                    label:
+                        Text(_loading ? _strings.checking : _strings.signIn)),
               ],
             ),
           ),
@@ -282,7 +295,8 @@ class _AdminScreenState extends State<AdminScreen> {
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 3),
                               child: ChoiceChip(
-                                  label: Text(item.$3),
+                                  label: Text(
+                                      _adminSectionLabel(_strings, item.$1)),
                                   selected: _section == item.$1,
                                   onSelected: (_) => _loadSection(item.$1))))
                           .toList()))),
@@ -293,15 +307,6 @@ class _AdminScreenState extends State<AdminScreen> {
   }
 
   Widget _buildContent() {
-    final titles = <String, String>{
-      'overview': 'نظرة عامة',
-      'users': 'المستخدمون',
-      'providers': 'مزودو الذكاء الاصطناعي',
-      'models': 'النماذج',
-      'plans': 'خطط الاشتراك',
-      'settings': 'إعدادات النظام',
-      'audit': 'سجل النشاط'
-    };
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(AppSpacing.lg),
@@ -310,7 +315,7 @@ class _AdminScreenState extends State<AdminScreen> {
             children: <Widget>[
               Row(children: <Widget>[
                 Expanded(
-                    child: Text(titles[_section] ?? 'لوحة الإدارة',
+                    child: Text(_adminSectionLabel(_strings, _section),
                         style: Theme.of(context)
                             .textTheme
                             .headlineSmall
@@ -320,12 +325,12 @@ class _AdminScreenState extends State<AdminScreen> {
                 IconButton(
                     onPressed: _loading ? null : () => _loadSection(_section),
                     icon: const Icon(Icons.refresh),
-                    tooltip: 'تحديث'),
+                    tooltip: _strings.refresh),
                 if (_section == 'providers')
                   IconButton(
                     onPressed: _loading ? null : _addProviderSimple,
                     icon: const Icon(Icons.add),
-                    tooltip: 'إضافة مزود واكتشاف نماذجه',
+                    tooltip: _strings.addProviderTooltip,
                   ),
               ]),
               const SizedBox(height: AppSpacing.md),
@@ -336,8 +341,7 @@ class _AdminScreenState extends State<AdminScreen> {
                         child: CircularProgressIndicator(
                             color: AppColors.primaryGold))),
               if (!_loading && _data == null && _error == null)
-                const Expanded(
-                    child: _EmptyState(message: 'لا توجد بيانات متاحة')),
+                Expanded(child: _EmptyState(message: _strings.noData)),
               if (!_loading && _data != null) Expanded(child: _sectionWidget()),
             ]),
       ),
@@ -350,22 +354,22 @@ class _AdminScreenState extends State<AdminScreen> {
       'users' => _UsersList(items: _data! as List<dynamic>),
       'providers' => _SimpleList(
           items: _data! as List<dynamic>,
-          empty: 'لم يتم إعداد مزودين بعد',
+          empty: _strings.noProviders,
           titleKey: 'name',
           subtitleKey: 'provider_type'),
       'models' => _SimpleList(
           items: _data! as List<dynamic>,
-          empty: 'لم يتم إعداد نماذج بعد',
+          empty: _strings.noModels,
           titleKey: 'name',
           subtitleKey: 'model_identifier'),
       'plans' => _SimpleList(
           items: _data! as List<dynamic>,
-          empty: 'لم يتم إنشاء خطط بعد',
+          empty: _strings.noPlans,
           titleKey: 'name',
           subtitleKey: 'billing_period'),
       'settings' => _SettingsList(values: _data! as Map<String, dynamic>),
       'audit' => _AuditList(items: _data! as List<dynamic>),
-      _ => const _EmptyState(message: 'هذه الوحدة لم تُربط بعد بواجهة الإدارة'),
+      _ => _EmptyState(message: _strings.adminModuleNotConnected),
     };
   }
 }
@@ -374,52 +378,55 @@ class _AdminSidebar extends StatelessWidget {
   const _AdminSidebar({required this.selected, required this.onSelect});
   final String selected;
   final ValueChanged<String> onSelect;
-  static const items = <(String, IconData, String)>[
-    ('overview', Icons.dashboard_outlined, 'نظرة عامة'),
-    ('users', Icons.people_outline, 'المستخدمون'),
-    ('providers', Icons.hub_outlined, 'المزودون'),
-    ('models', Icons.smart_toy_outlined, 'النماذج'),
-    ('plans', Icons.card_membership_outlined, 'الاشتراكات'),
-    ('settings', Icons.settings_outlined, 'الإعدادات'),
-    ('audit', Icons.receipt_long_outlined, 'سجل النشاط'),
+  static const items = <(String, IconData)>[
+    ('overview', Icons.dashboard_outlined),
+    ('users', Icons.people_outline),
+    ('providers', Icons.hub_outlined),
+    ('models', Icons.smart_toy_outlined),
+    ('plans', Icons.card_membership_outlined),
+    ('settings', Icons.settings_outlined),
+    ('audit', Icons.receipt_long_outlined),
   ];
   @override
-  Widget build(BuildContext context) => Container(
-      width: 230,
-      color: AppColors.surface,
-      child: SafeArea(
-          child: Column(children: <Widget>[
-        const Padding(
-            padding: EdgeInsets.all(AppSpacing.lg),
-            child: Row(children: <Widget>[
-              Icon(Icons.auto_awesome, color: AppColors.primaryGold),
-              SizedBox(width: 8),
-              Text('SULY ADMIN',
-                  style: TextStyle(
-                      color: AppColors.primaryGold,
-                      fontWeight: FontWeight.w800))
-            ])),
-        const Divider(height: 1, color: AppColors.border),
-        Expanded(
-            child: ListView(
-                padding: const EdgeInsets.all(AppSpacing.sm),
-                children: items
-                    .map((item) => ListTile(
-                        leading: Icon(item.$2,
-                            color: selected == item.$1
-                                ? AppColors.primaryGold
-                                : AppColors.textMuted),
-                        title: Text(item.$3,
-                            style: TextStyle(
-                                color: selected == item.$1
-                                    ? AppColors.text
-                                    : AppColors.textMuted)),
-                        selected: selected == item.$1,
-                        selectedTileColor:
-                            AppColors.primaryGold.withValues(alpha: 0.14),
-                        onTap: () => onSelect(item.$1)))
-                    .toList())),
-      ])));
+  Widget build(BuildContext context) {
+    final strings = AppLocalizations.of(context);
+    return Container(
+        width: 230,
+        color: AppColors.surface,
+        child: SafeArea(
+            child: Column(children: <Widget>[
+          const Padding(
+              padding: EdgeInsets.all(AppSpacing.lg),
+              child: Row(children: <Widget>[
+                SulyBrandMark(size: 28),
+                SizedBox(width: 8),
+                Text('SULY ADMIN',
+                    style: TextStyle(
+                        color: AppColors.primaryGold,
+                        fontWeight: FontWeight.w800))
+              ])),
+          const Divider(height: 1, color: AppColors.border),
+          Expanded(
+              child: ListView(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  children: items
+                      .map((item) => ListTile(
+                          leading: Icon(item.$2,
+                              color: selected == item.$1
+                                  ? AppColors.primaryGold
+                                  : AppColors.textMuted),
+                          title: Text(_adminSectionLabel(strings, item.$1),
+                              style: TextStyle(
+                                  color: selected == item.$1
+                                      ? AppColors.text
+                                      : AppColors.textMuted)),
+                          selected: selected == item.$1,
+                          selectedTileColor:
+                              AppColors.primaryGold.withValues(alpha: 0.14),
+                          onTap: () => onSelect(item.$1)))
+                      .toList())),
+        ])));
+  }
 }
 
 class _Overview extends StatelessWidget {
@@ -427,40 +434,45 @@ class _Overview extends StatelessWidget {
   final Map<String, dynamic> data;
   @override
   Widget build(BuildContext context) {
+    final strings = AppLocalizations.of(context);
     final cards = <(String, String, IconData)>[
-      ('المستخدمون', '${data['total_users'] ?? 0}', Icons.people_outline),
       (
-        'المستخدمون النشطون',
+        strings.metricTotalUsers,
+        '${data['total_users'] ?? 0}',
+        Icons.people_outline
+      ),
+      (
+        strings.metricActiveUsers,
         '${data['active_users'] ?? 0}',
         Icons.verified_user_outlined
       ),
       (
-        'المستخدمون الجدد',
+        strings.metricNewUsers,
         '${data['new_users'] ?? 0}',
         Icons.person_add_alt_1_outlined
       ),
       (
-        'المشاريع',
+        strings.metricProjects,
         '${data['total_projects'] ?? 0}',
         Icons.folder_open_outlined
       ),
       (
-        'المشرفون النشطون',
+        strings.metricActiveAdmins,
         '${data['active_admins'] ?? 0}',
         Icons.admin_panel_settings_outlined
       ),
       (
-        'الأرصدة المستهلكة',
+        strings.metricCreditsConsumed,
         '${data['total_credits_consumed'] ?? 0}',
         Icons.account_balance_wallet_outlined
       ),
       (
-        'المزودون الفعالون',
+        strings.metricActiveProviders,
         '${data['configured_providers'] ?? 0}',
         Icons.hub_outlined
       ),
       (
-        'النماذج المتاحة',
+        strings.metricAvailableModels,
         '${data['available_models'] ?? 0}',
         Icons.smart_toy_outlined
       ),
@@ -487,7 +499,7 @@ class _Overview extends StatelessWidget {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
-                    Text('آخر النشاطات',
+                    Text(strings.recentActivity,
                         style: Theme.of(context)
                             .textTheme
                             .titleMedium
@@ -497,7 +509,7 @@ class _Overview extends StatelessWidget {
                     const SizedBox(height: AppSpacing.sm),
                     if ((data['recent_activity'] as List<dynamic>? ?? [])
                         .isEmpty)
-                      const _EmptyState(message: 'لا توجد نشاطات مسجلة بعد')
+                      _EmptyState(message: strings.noRecentActivity)
                     else
                       ...((data['recent_activity'] as List<dynamic>).map(
                           (item) => ListTile(
@@ -572,8 +584,8 @@ class _UsersList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty)
-      return const _EmptyState(message: 'لا يوجد مستخدمون مسجلون');
+    final strings = AppLocalizations.of(context);
+    if (items.isEmpty) return _EmptyState(message: strings.noUsers);
     return ListView.separated(
       itemCount: items.length,
       separatorBuilder: (_, __) => const Divider(color: AppColors.border),
@@ -587,7 +599,8 @@ class _UsersList extends StatelessWidget {
                   style: const TextStyle(color: AppColors.primaryGold))),
           title: Text(item['full_name']?.toString() ?? email,
               style: const TextStyle(color: AppColors.text)),
-          subtitle: Text('$email • الرصيد: ${item['credit_balance'] ?? 0}',
+          subtitle: Text(
+              '${email} • ${strings.creditBalance((item['credit_balance'] as num?)?.toInt() ?? 0)}',
               style: const TextStyle(color: AppColors.textMuted)),
           trailing: Icon(
               item['is_active'] == true
@@ -614,6 +627,7 @@ class _SimpleList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final strings = AppLocalizations.of(context);
     if (items.isEmpty) return _EmptyState(message: empty);
     return ListView.separated(
       itemCount: items.length,
@@ -632,7 +646,7 @@ class _SimpleList extends StatelessWidget {
               style: const TextStyle(color: AppColors.text)),
           subtitle: Text(subtitle,
               style: const TextStyle(color: AppColors.textMuted)),
-          trailing: Text(enabled ? 'فعال' : 'غير فعال',
+          trailing: Text(enabled ? strings.active : strings.inactive,
               style: TextStyle(
                   color: enabled ? Colors.green : AppColors.textMuted)),
         );
@@ -645,38 +659,44 @@ class _SettingsList extends StatelessWidget {
   const _SettingsList({required this.values});
   final Map<String, dynamic> values;
   @override
-  Widget build(BuildContext context) => values.isEmpty
-      ? const _EmptyState(message: 'لا توجد إعدادات مخصصة بعد')
-      : ListView(
-          children: values.entries
-              .map((entry) => ListTile(
-                  title: Text(entry.key,
-                      style: const TextStyle(color: AppColors.text)),
-                  subtitle: Text(entry.value.toString(),
-                      style: const TextStyle(color: AppColors.textMuted))))
-              .toList());
+  Widget build(BuildContext context) {
+    final strings = AppLocalizations.of(context);
+    return values.isEmpty
+        ? _EmptyState(message: strings.noSettings)
+        : ListView(
+            children: values.entries
+                .map((entry) => ListTile(
+                    title: Text(entry.key,
+                        style: const TextStyle(color: AppColors.text)),
+                    subtitle: Text(entry.value.toString(),
+                        style: const TextStyle(color: AppColors.textMuted))))
+                .toList());
+  }
 }
 
 class _AuditList extends StatelessWidget {
   const _AuditList({required this.items});
   final List<dynamic> items;
   @override
-  Widget build(BuildContext context) => items.isEmpty
-      ? const _EmptyState(message: 'لا توجد سجلات إدارية بعد')
-      : ListView.separated(
-          itemCount: items.length,
-          separatorBuilder: (_, __) => const Divider(color: AppColors.border),
-          itemBuilder: (_, index) {
-            final item = items[index] as Map<String, dynamic>;
-            return ListTile(
-                leading:
-                    const Icon(Icons.history, color: AppColors.primaryGold),
-                title: Text(item['action']?.toString() ?? '',
-                    style: const TextStyle(color: AppColors.text)),
-                subtitle: Text(
-                    '${item['target_type'] ?? ''} ${item['target_id'] ?? ''} • ${item['created_at'] ?? ''}',
-                    style: const TextStyle(color: AppColors.textMuted)));
-          });
+  Widget build(BuildContext context) {
+    final strings = AppLocalizations.of(context);
+    return items.isEmpty
+        ? _EmptyState(message: strings.noAudit)
+        : ListView.separated(
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const Divider(color: AppColors.border),
+            itemBuilder: (_, index) {
+              final item = items[index] as Map<String, dynamic>;
+              return ListTile(
+                  leading:
+                      const Icon(Icons.history, color: AppColors.primaryGold),
+                  title: Text(item['action']?.toString() ?? '',
+                      style: const TextStyle(color: AppColors.text)),
+                  subtitle: Text(
+                      '${item['target_type'] ?? ''} ${item['target_id'] ?? ''} • ${item['created_at'] ?? ''}',
+                      style: const TextStyle(color: AppColors.textMuted)));
+            });
+  }
 }
 
 class _EmptyState extends StatelessWidget {

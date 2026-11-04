@@ -8,6 +8,8 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../../../core/config/api_config.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
+import '../../../core/widgets/suly_brand_mark.dart';
+import '../../../l10n/generated/app_localizations.dart';
 
 class FunctionalChatScreen extends StatefulWidget {
   const FunctionalChatScreen({super.key});
@@ -37,6 +39,7 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
   int _creditBalance = 0;
 
   Uri get _base => Uri.parse(ApiConfig.baseUrl);
+  AppLocalizations get _strings => AppLocalizations.of(context);
 
   @override
   void initState() {
@@ -71,8 +74,7 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
           await prefs.remove(_tokenKey);
         }
       } catch (_) {
-        _error =
-            'تعذر الاتصال بالخادم. تحقق من اتصال الإنترنت ثم أعد المحاولة.';
+        _error = _strings.connectionError;
       }
     }
     if (mounted) setState(() => _ready = true);
@@ -120,28 +122,27 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
   String _friendlyError(int status, Map<String, dynamic> body) {
     final detail = body['detail']?.toString() ?? '';
     if (status == 402) {
-      return 'رصيد الحساب غير كافٍ. اطلب من مدير النظام إضافة رصيد لحسابك.';
+      return _strings.insufficientCredits;
     }
     if (status == 503) {
-      return 'خدمة الذكاء الاصطناعي غير جاهزة. تأكد من إضافة مزود API ونموذج مفعّل من لوحة الإدارة.';
+      return _strings.providerNotReady;
     }
-    if (status == 401) return 'بيانات الدخول غير صحيحة أو انتهت الجلسة.';
-    if (status == 409)
-      return 'هذا البريد مسجل بالفعل. سجّل الدخول بدل إنشاء حساب جديد.';
-    if (status == 429) return 'تم تجاوز حد الطلبات مؤقتًا. حاول بعد قليل.';
-    if (status == 0) return 'تعذر الاتصال بالخادم.';
-    return detail.isNotEmpty ? detail : 'تعذر إكمال الطلب (رمز $status).';
+    if (status == 401) return _strings.invalidCredentials;
+    if (status == 409) return _strings.emailAlreadyRegistered;
+    if (status == 429) return _strings.tooManyRequests;
+    if (status == 0) return _strings.connectionError;
+    return detail.isNotEmpty ? detail : _strings.requestFailed(status);
   }
 
   Future<void> _authenticate() async {
     final email = _email.text.trim();
     final password = _password.text;
     if (email.isEmpty || password.isEmpty) {
-      setState(() => _error = 'أدخل البريد الإلكتروني وكلمة المرور أولًا.');
+      setState(() => _error = _strings.requiredCredentials);
       return;
     }
     if (_registering && password.length < 8) {
-      setState(() => _error = 'يجب أن تتكون كلمة المرور من 8 أحرف على الأقل.');
+      setState(() => _error = _strings.passwordTooShort);
       return;
     }
     setState(() {
@@ -166,7 +167,7 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
           },
           token: null);
       final token = login['access_token']?.toString();
-      if (token == null || token.isEmpty) throw 'لم يُرجع الخادم رمز الدخول.';
+      if (token == null || token.isEmpty) throw _strings.missingAccessToken;
       _token = token;
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_tokenKey, token);
@@ -267,7 +268,7 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
     try {
       if (_conversationId == null) await _createConversation();
       final id = _conversationId;
-      if (id == null) throw 'تعذر إنشاء محادثة جديدة.';
+      if (id == null) throw _strings.conversationCreateFailed;
       final userMessage = <String, dynamic>{
         'role': 'user',
         'content': text,
@@ -292,7 +293,7 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
       }
       _messages.add({
         'role': 'assistant',
-        'content': body['reply']?.toString() ?? 'لم يصل رد من النموذج.',
+        'content': body['reply']?.toString() ?? _strings.emptyModelReply,
         'created_at': DateTime.now().toIso8601String(),
       });
       await _loadConversations();
@@ -319,12 +320,13 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
         child: ListView(
           shrinkWrap: true,
           children: [
-            const ListTile(title: Text('محادثاتك')),
+            ListTile(title: Text(_strings.chatHistory)),
             ..._conversations.map((item) {
               final id = (item['id'] as num).toInt();
               return ListTile(
                 leading: const Icon(Icons.chat_bubble_outline),
-                title: Text(item['title']?.toString() ?? 'محادثة'),
+                title: Text(
+                    item['title']?.toString() ?? _strings.conversationFallback),
                 selected: _conversationId == id,
                 onTap: () => Navigator.pop(context, id),
               );
@@ -375,12 +377,12 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
           if (mounted)
             setState(() {
               _listening = false;
-              _error = 'تعذر استخدام الميكروفون: ${error.errorMsg}';
+              _error = _strings.microphoneError(error.errorMsg);
             });
         },
       );
       if (!_speechAvailable) {
-        setState(() => _error = 'الإملاء الصوتي غير مدعوم في هذا المتصفح.');
+        setState(() => _error = _strings.speechUnavailable);
         return;
       }
       setState(() => _error = null);
@@ -400,15 +402,18 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
         },
       );
     } catch (_) {
-      if (mounted) setState(() => _error = 'لم يُسمح بالوصول إلى الميكروفون.');
+      if (mounted) setState(() => _error = _strings.microphonePermissionDenied);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     if (!_ready) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.primaryGold),
+      return Center(
+        child: CircularProgressIndicator(
+          color: AppColors.primaryGold,
+          semanticsLabel: _strings.loading,
+        ),
       );
     }
     if (_token == null) return _buildAuth();
@@ -429,13 +434,10 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.chat_bubble_outline,
-                      size: 46, color: AppColors.primaryGold),
+                  const SulyBrandMark(size: 58),
                   const SizedBox(height: AppSpacing.md),
                   Text(
-                    _registering
-                        ? 'إنشاء حساب للمحادثة'
-                        : 'سجّل الدخول لبدء المحادثة',
+                    _registering ? _strings.registerTitle : _strings.loginTitle,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           color: AppColors.text,
@@ -447,9 +449,9 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
                     controller: _email,
                     keyboardType: TextInputType.emailAddress,
                     textDirection: TextDirection.ltr,
-                    decoration: const InputDecoration(
-                      labelText: 'البريد الإلكتروني',
-                      prefixIcon: Icon(Icons.email_outlined),
+                    decoration: InputDecoration(
+                      labelText: _strings.email,
+                      prefixIcon: const Icon(Icons.email_outlined),
                     ),
                   ),
                   const SizedBox(height: AppSpacing.md),
@@ -457,10 +459,10 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
                     controller: _password,
                     obscureText: true,
                     onSubmitted: (_) => _authenticate(),
-                    decoration: const InputDecoration(
-                      labelText: 'كلمة المرور',
-                      prefixIcon: Icon(Icons.lock_outline),
-                      helperText: '8 أحرف على الأقل عند إنشاء حساب جديد',
+                    decoration: InputDecoration(
+                      labelText: _strings.password,
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      helperText: _strings.minimumPassword,
                     ),
                   ),
                   if (_error != null) _errorBox(_error!),
@@ -473,8 +475,9 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.login),
-                    label: Text(
-                        _registering ? 'إنشاء الحساب وبدء المحادثة' : 'دخول'),
+                    label: Text(_registering
+                        ? _strings.createAccountAndChat
+                        : _strings.signIn),
                   ),
                   TextButton(
                     onPressed: _busy
@@ -484,8 +487,8 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
                               _error = null;
                             }),
                     child: Text(_registering
-                        ? 'لديك حساب؟ سجّل الدخول'
-                        : 'مستخدم جديد؟ أنشئ حسابًا'),
+                        ? _strings.loginPrompt
+                        : _strings.registerPrompt),
                   ),
                 ],
               ),
@@ -506,18 +509,18 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
           child: Row(
             children: [
               IconButton(
-                tooltip: 'محادثاتك',
+                tooltip: _strings.chatHistory,
                 onPressed: _conversations.isEmpty ? null : _switchConversation,
                 icon: const Icon(Icons.history),
               ),
               IconButton(
-                tooltip: 'محادثة جديدة',
+                tooltip: _strings.newConversation,
                 onPressed: _busy ? null : _newConversation,
                 icon: const Icon(Icons.add_comment_outlined),
               ),
               const Spacer(),
-              const Text('محادثة جديدة',
-                  style: TextStyle(color: AppColors.textMuted)),
+              Text(_strings.conversationLabel,
+                  style: const TextStyle(color: AppColors.textMuted)),
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 4),
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
@@ -540,7 +543,7 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
                 ),
               ),
               IconButton(
-                tooltip: 'تسجيل الخروج',
+                tooltip: _strings.signOut,
                 onPressed: _signOut,
                 icon: const Icon(Icons.logout_outlined),
               ),
@@ -620,18 +623,17 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.auto_awesome,
-                size: 52, color: AppColors.primaryGold),
+            const SulyBrandMark(size: 72),
             const SizedBox(height: AppSpacing.md),
-            Text('ما الذي تريد أن نعمل عليه؟',
+            Text(_strings.emptyChatTitle,
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       color: AppColors.text,
                       fontWeight: FontWeight.w700,
                     ),
                 textAlign: TextAlign.center),
             const SizedBox(height: AppSpacing.sm),
-            const Text('اكتب رسالتك أو اضغط الميكروفون للإملاء الصوتي.',
-                style: TextStyle(color: AppColors.textMuted),
+            Text(_strings.emptyChatBody,
+                style: const TextStyle(color: AppColors.textMuted),
                 textAlign: TextAlign.center),
           ],
         ),
@@ -655,7 +657,8 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
           children: [
             IconButton.filledTonal(
               onPressed: _busy ? null : _toggleSpeech,
-              tooltip: _listening ? 'إيقاف الاستماع' : 'إملاء صوتي بالعربية',
+              tooltip:
+                  _listening ? _strings.stopListening : _strings.dictateArabic,
               icon: Icon(
                   _listening ? Icons.stop_circle_outlined : Icons.mic_none),
             ),
@@ -665,12 +668,12 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
                 controller: _message,
                 minLines: 1,
                 maxLines: 5,
-                textDirection: TextDirection.rtl,
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => _sendMessage(),
                 enabled: !_busy,
                 decoration: InputDecoration(
-                  hintText: _listening ? 'أستمع إليك...' : 'اكتب رسالتك هنا...',
+                  hintText:
+                      _listening ? _strings.listening : _strings.composerHint,
                   filled: true,
                   fillColor: AppColors.inputFill,
                   contentPadding: const EdgeInsets.symmetric(
@@ -691,7 +694,7 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
             const SizedBox(width: AppSpacing.sm),
             IconButton.filled(
               onPressed: _busy ? null : _sendMessage,
-              tooltip: 'إرسال',
+              tooltip: _strings.send,
               icon: const Icon(Icons.send),
             ),
           ],

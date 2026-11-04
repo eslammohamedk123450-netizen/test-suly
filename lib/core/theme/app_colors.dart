@@ -29,27 +29,30 @@ abstract final class AppColors {
   static const Color darkGold = Color(0xFFD4AF37);
   static const Color darkSecondaryGold = Color(0xFFB88A2B);
   static const Color darkText = Color(0xFFF5F0E2);
+  static const Color darkTextMuted = Color(0xFF9A9A9A);
+  static const Color darkBorder = Color(0xFF36373A);
+  static const Color darkInputFill = Color(0xFF0E1424);
 
   // ---------- Light Mode ----------
   static const Color lightBackground = Color(0xFFF7F7F5);
   static const Color lightSurface = Color(0xFFFFFFFF);
   static const Color lightSurfaceSecondary = Color(0xFFF0EEE8);
-  static const Color lightGold = Color(0xFFB88A2B);
-  static const Color lightSecondaryGold = Color(0xFF9A731E);
+  static const Color lightGold = Color(0xFF4A6CF7);
+  static const Color lightSecondaryGold = Color(0xFF3657D6);
   static const Color lightText = Color(0xFF171923);
 
-  // Backward-compatible aliases (dark-first product identity).
-  static const Color background = darkBackground;
-  static const Color surface = darkSurface;
-  static const Color surfaceSecondary = darkSurfaceSecondary;
-  static const Color primaryGold = darkGold;
-  static const Color secondaryGold = darkSecondaryGold;
-  static const Color text = darkText;
+  // Default product surface follows a light, minimal chat-first palette.
+  static const Color background = lightBackground;
+  static const Color surface = lightSurface;
+  static const Color surfaceSecondary = lightSurfaceSecondary;
+  static const Color primaryGold = lightGold;
+  static const Color secondaryGold = lightSecondaryGold;
+  static const Color text = lightText;
 
   // Derived / utility
-  static const Color textMuted = Color(0xFF9A9A9A);
-  static const Color border = Color(0xFF36373A);
+  static const Color textMuted = Color(0xFF687083);
+  static const Color border = Color(0xFFE3E7EF);
   static const Color error = Color(0xFFE06C6C);
   static const Color success = Color(0xFF86C86C);
-  static const Color inputFill = Color(0xFF0E1424);
+  static const Color inputFill = Color(0xFFF3F5F9);
 }

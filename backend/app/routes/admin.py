@@ -282,9 +282,64 @@ def list_models(db: Session = Depends(get_db), _admin: User = Depends(get_curren
             "enabled": model.enabled,
             "priority": model.priority,
             "fallback_eligible": model.fallback_eligible,
+            "auto_disabled": model.auto_disabled,
+            "consecutive_failures": model.consecutive_failures,
+            "last_response_latency_ms": model.last_response_latency_ms,
+            "last_response_status": model.last_response_status,
+            "last_response_error": model.last_response_error,
+            "last_response_at": model.last_response_at.isoformat() if model.last_response_at else None,
         }
         for model, provider_name in rows
     ]
+
+
+@router.patch("/models/{model_id}/priority", response_model=dict)
+def update_model_priority(
+    model_id: int,
+    priority: int = Body(..., embed=True, ge=0, le=10000),
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> dict:
+    model = db.query(AIModel).filter(AIModel.id == model_id).first()
+    if not model:
+        raise HTTPException(status_code=404, detail="Model not found")
+    old_priority = model.priority
+    siblings = db.query(AIModel).filter(
+        AIModel.provider_id == model.provider_id
+    ).order_by(AIModel.priority.asc(), AIModel.id.asc()).all()
+    old_index = next(index for index, item in enumerate(siblings) if item.id == model.id)
+    if priority != old_priority:
+        target_index = max(0, min(len(siblings) - 1,
+                                  old_index + (-1 if priority < old_priority else 1)))
+        moved = siblings.pop(old_index)
+        siblings.insert(target_index, moved)
+        for index, item in enumerate(siblings):
+            item.priority = index
+    audit(db, admin, "model.priority_changed", "model", str(model.id),
+          {"old_priority": old_priority, "priority": model.priority})
+    db.commit()
+    return {"id": model.id, "priority": model.priority}
+
+
+@router.patch("/models/{model_id}/enabled", response_model=dict)
+def update_model_enabled(
+    model_id: int,
+    enabled: bool = Body(..., embed=True),
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+) -> dict:
+    model = db.query(AIModel).filter(AIModel.id == model_id).first()
+    if model is None:
+        raise HTTPException(status_code=404, detail="Model not found")
+    model.enabled = enabled
+    if enabled:
+        model.auto_disabled = False
+        model.consecutive_failures = 0
+    else:
+        model.auto_disabled = False
+    audit(db, admin, "model.enabled_changed", "model", str(model.id), {"enabled": enabled})
+    db.commit()
+    return {"id": model.id, "enabled": model.enabled, "auto_disabled": model.auto_disabled}
 
 
 @router.get("/audit", response_model=list[AuditOut])

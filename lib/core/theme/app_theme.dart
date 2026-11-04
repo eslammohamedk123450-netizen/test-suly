@@ -9,14 +9,14 @@ abstract final class AppTheme {
 
   static ThemeData dark({String fontFamily = 'Tajawal'}) {
     const colorScheme = ColorScheme.dark(
-      primary: AppColors.primaryGold,
-      secondary: AppColors.secondaryGold,
-      surface: AppColors.surface,
+      primary: AppColors.darkGold,
+      secondary: AppColors.darkSecondaryGold,
+      surface: AppColors.darkSurface,
       error: AppColors.error,
-      onPrimary: AppColors.background,
-      onSecondary: AppColors.background,
-      onSurface: AppColors.text,
-      onError: AppColors.text,
+      onPrimary: AppColors.darkBackground,
+      onSecondary: AppColors.darkBackground,
+      onSurface: AppColors.darkText,
+      onError: AppColors.darkText,
     );
 
     return ThemeData(
@@ -24,37 +24,37 @@ abstract final class AppTheme {
       brightness: Brightness.dark,
       fontFamily: fontFamily,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: AppColors.background,
-      canvasColor: AppColors.surface,
-      dividerColor: AppColors.border,
-      textTheme: _textTheme(AppColors.text, fontFamily),
+      scaffoldBackgroundColor: AppColors.darkBackground,
+      canvasColor: AppColors.darkSurface,
+      dividerColor: AppColors.darkBorder,
+      textTheme: _textTheme(AppColors.darkText, fontFamily),
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.surface,
-        foregroundColor: AppColors.text,
+        backgroundColor: AppColors.darkSurface,
+        foregroundColor: AppColors.darkText,
         elevation: 0,
         centerTitle: false,
         scrolledUnderElevation: 0,
       ),
       cardTheme: CardThemeData(
-        color: AppColors.surface,
+        color: AppColors.darkSurface,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadii.lg),
-          side: const BorderSide(color: AppColors.border),
+          side: const BorderSide(color: AppColors.darkBorder),
         ),
       ),
-      drawerTheme: const DrawerThemeData(backgroundColor: AppColors.surface),
+      drawerTheme: const DrawerThemeData(backgroundColor: AppColors.darkSurface),
       navigationRailTheme: const NavigationRailThemeData(
-        backgroundColor: AppColors.surface,
-        selectedIconTheme: IconThemeData(color: AppColors.primaryGold),
-        selectedLabelTextStyle: TextStyle(color: AppColors.primaryGold),
-        unselectedIconTheme: IconThemeData(color: AppColors.textMuted),
-        unselectedLabelTextStyle: TextStyle(color: AppColors.textMuted),
+        backgroundColor: AppColors.darkSurface,
+        selectedIconTheme: IconThemeData(color: AppColors.darkGold),
+        selectedLabelTextStyle: TextStyle(color: AppColors.darkGold),
+        unselectedIconTheme: IconThemeData(color: AppColors.darkTextMuted),
+        unselectedLabelTextStyle: TextStyle(color: AppColors.darkTextMuted),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: AppColors.surface,
-        indicatorColor: AppColors.primaryGold.withValues(alpha: 0.16),
+        backgroundColor: AppColors.darkSurface,
+        indicatorColor: AppColors.darkGold.withValues(alpha: 0.16),
         elevation: 0,
         height: 70,
         labelTextStyle: WidgetStateProperty.resolveWith((states) => TextStyle(
@@ -64,42 +64,42 @@ abstract final class AppTheme {
                   ? FontWeight.w700
                   : FontWeight.w500,
               color: states.contains(WidgetState.selected)
-                  ? AppColors.primaryGold
-                  : AppColors.textMuted,
+                  ? AppColors.darkGold
+                  : AppColors.darkTextMuted,
             )),
         iconTheme: WidgetStateProperty.resolveWith((states) => IconThemeData(
               color: states.contains(WidgetState.selected)
-                  ? AppColors.primaryGold
-                  : AppColors.textMuted,
+                  ? AppColors.darkGold
+                  : AppColors.darkTextMuted,
             )),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.inputFill,
+        fillColor: AppColors.darkInputFill,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: AppSpacing.md,
           vertical: AppSpacing.md,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadii.md),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: const BorderSide(color: AppColors.darkBorder),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadii.md),
-          borderSide: const BorderSide(color: AppColors.border),
+          borderSide: const BorderSide(color: AppColors.darkBorder),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadii.md),
           borderSide:
-              const BorderSide(color: AppColors.primaryGold, width: 1.4),
+              const BorderSide(color: AppColors.darkGold, width: 1.4),
         ),
-        labelStyle: const TextStyle(color: AppColors.textMuted),
-        hintStyle: const TextStyle(color: AppColors.textMuted),
+        labelStyle: const TextStyle(color: AppColors.darkTextMuted),
+        hintStyle: const TextStyle(color: AppColors.darkTextMuted),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primaryGold,
-          foregroundColor: AppColors.background,
+          backgroundColor: AppColors.darkGold,
+          foregroundColor: AppColors.darkBackground,
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadii.md),
@@ -108,8 +108,8 @@ abstract final class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.primaryGold,
-          foregroundColor: AppColors.background,
+          backgroundColor: AppColors.darkGold,
+          foregroundColor: AppColors.darkBackground,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadii.md),
           ),
@@ -117,8 +117,8 @@ abstract final class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primaryGold,
-          side: const BorderSide(color: AppColors.primaryGold),
+          foregroundColor: AppColors.darkGold,
+          side: const BorderSide(color: AppColors.darkGold),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadii.md),
@@ -126,25 +126,25 @@ abstract final class AppTheme {
         ),
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: AppColors.surface,
+        backgroundColor: AppColors.darkSurface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadii.xl),
-          side: const BorderSide(color: AppColors.border),
+          side: const BorderSide(color: AppColors.darkBorder),
         ),
       ),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: AppColors.surfaceSecondary,
+        backgroundColor: AppColors.darkSurfaceSecondary,
         contentTextStyle:
-            TextStyle(color: AppColors.text, fontFamily: fontFamily),
+            TextStyle(color: AppColors.darkText, fontFamily: fontFamily),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadii.md),
         ),
       ),
       textSelectionTheme: const TextSelectionThemeData(
-        cursorColor: AppColors.primaryGold,
-        selectionColor: Color(0x55D4AF37),
-        selectionHandleColor: AppColors.primaryGold,
+        cursorColor: AppColors.darkGold,
+        selectionColor: Color(0x554A6CF7),
+        selectionHandleColor: AppColors.darkGold,
       ),
     );
   }

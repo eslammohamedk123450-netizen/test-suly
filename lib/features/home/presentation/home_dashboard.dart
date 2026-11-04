@@ -47,7 +47,7 @@ class HomeDashboard extends StatelessWidget {
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     const Text(
-                      'ابدأ محادثة جديدة واكتب سؤالك أو أمْلِه بصوتك. ستظهر محادثاتك أنت فقط بعد تسجيل الدخول.',
+                      'اسأل عمّا تريد، وسأساعدك خطوة بخطوة.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: AppColors.textMuted, height: 1.6),
                     ),

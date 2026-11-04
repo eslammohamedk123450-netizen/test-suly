@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:http_parser/http_parser.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,7 +29,9 @@ class _StreamResult {
 }
 
 class FunctionalChatScreen extends StatefulWidget {
-  const FunctionalChatScreen({super.key});
+  const FunctionalChatScreen({super.key, this.onLocaleChanged});
+
+  final ValueChanged<String>? onLocaleChanged;
 
   @override
   State<FunctionalChatScreen> createState() => _FunctionalChatScreenState();
@@ -44,12 +48,16 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
   bool _stopRequested = false;
 
   String? _token;
+  String? _accountEmail;
+  String? _accountName;
   String? _error;
   bool _ready = false;
   bool _registering = false;
   bool _busy = false;
   bool _listening = false;
   bool _speechAvailable = false;
+  bool _uploading = false;
+  final List<Map<String, dynamic>> _pendingAttachments = [];
   List<Map<String, dynamic>> _conversations = [];
   int? _conversationId;
   List<Map<String, dynamic>> _messages = [];
@@ -100,6 +108,9 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
         );
         if (response.statusCode == 200) {
           _token = saved;
+          final profile = _decode(response.body);
+          _accountEmail = profile['email']?.toString();
+          _accountName = profile['full_name']?.toString();
           await _loadConversations();
           await _loadCreditBalance();
         } else {
@@ -215,6 +226,10 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
       if (token == null || token.isEmpty) throw _strings.missingAccessToken;
       await AuthSession.saveAccessToken(token);
       _token = token;
+      try {
+        final profileResponse = await http.get(_base.resolve('/api/v1/auth/me'), headers: _headers());
+        if (profileResponse.statusCode == 200) { final profile = _decode(profileResponse.body); _accountEmail = profile['email']?.toString(); _accountName = profile['full_name']?.toString(); }
+      } catch (_) {}
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_legacyTokenKey);
       await _loadConversations();
@@ -228,6 +243,14 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
 
   Future<void> _signOut() async {
     final token = _token;
+    if (token != null && token.isNotEmpty) {
+      for (final attachment in List<Map<String, dynamic>>.from(_pendingAttachments)) {
+        final id = (attachment['id'] as num?)?.toInt();
+        if (id != null) {
+          try { await http.delete(_base.resolve('/api/v1/files/$id'), headers: _headers(token)); } catch (_) {}
+        }
+      }
+    }
     if (token != null && token.isNotEmpty) {
       try {
         await http.post(
@@ -247,13 +270,38 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
     }
     setState(() {
       _token = null;
+      _accountEmail = null;
+      _accountName = null;
       _conversationId = null;
       _messages = [];
       _conversations = [];
+      _pendingAttachments.clear();
       _creditBalance = 0;
       _error = null;
       _password.clear();
     });
+  }
+
+  Future<void> _showAccountSettings() async {
+    final arabic = Localizations.localeOf(context).languageCode == 'ar';
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text(arabic ? 'الإعدادات والحساب' : 'Settings & account', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: AppColors.text, fontWeight: FontWeight.bold)),
+            const SizedBox(height: AppSpacing.md),
+            ListTile(leading: const Icon(Icons.person_outline), title: Text((_accountName?.trim().isNotEmpty == true ? _accountName! : _accountEmail) ?? (arabic ? 'مستخدم' : 'User')), subtitle: Text(_accountEmail ?? (arabic ? 'الحساب الحالي' : 'Signed-in account'))),
+            ListTile(leading: const Icon(Icons.language), title: Text(arabic ? 'اللغة' : 'Language'), trailing: SegmentedButton<String>(segments: const [ButtonSegment(value: 'ar', label: Text('العربية')), ButtonSegment(value: 'en', label: Text('English'))], selected: {Localizations.localeOf(context).languageCode}, onSelectionChanged: (selected) { widget.onLocaleChanged?.call(selected.first); Navigator.pop(sheetContext); })),
+            ListTile(leading: const Icon(Icons.info_outline), title: Text(arabic ? 'الإصدار' : 'Version'), trailing: const Text('1.1.0+2')),
+            ListTile(leading: const Icon(Icons.logout, color: AppColors.error), title: Text(arabic ? 'تسجيل الخروج' : 'Sign out', style: const TextStyle(color: AppColors.error)), onTap: () { Navigator.pop(sheetContext); _signOut(); }),
+          ]),
+        ),
+      ),
+    );
   }
 
   Future<void> _loadConversations() async {
@@ -498,10 +546,67 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
     }
   }
 
+  MediaType? _mimeForName(String name) {
+    final ext = name.split('.').last.toLowerCase();
+    const types = <String, String>{
+      'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg',
+      'webp': 'image/webp', 'pdf': 'application/pdf', 'txt': 'text/plain',
+      'md': 'text/markdown', 'csv': 'text/csv', 'json': 'application/json',
+    };
+    final value = types[ext];
+    if (value == null) return null;
+    final pieces = value.split('/');
+    return MediaType(pieces[0], pieces[1]);
+  }
+
+  Future<void> _pickAndUploadFile() async {
+    if (_uploading || _busy || _token == null) return;
+    if (_pendingAttachments.length >= 5) {
+      setState(() => _error = Localizations.localeOf(context).languageCode == 'ar'
+          ? 'يمكن إرفاق خمسة ملفات كحد أقصى في الرسالة.'
+          : 'You can attach up to five files per message.');
+      return;
+    }
+    try {
+      final picked = await FilePicker.platform.pickFiles(withData: true, allowMultiple: false);
+      if (picked == null || picked.files.isEmpty) return;
+      final file = picked.files.first;
+      final mime = _mimeForName(file.name);
+      if (mime == null) throw Localizations.localeOf(context).languageCode == 'ar'
+          ? 'الأنواع المدعومة: الصور وPDF وTXT وMarkdown وCSV وJSON.'
+          : 'Supported: images, PDF, TXT, Markdown, CSV, and JSON.';
+      if (file.bytes == null) throw _strings.requestFailed(0);
+      setState(() { _uploading = true; _error = null; });
+      final request = http.MultipartRequest('POST', _base.resolve('/api/v1/files/upload'));
+      request.headers['Authorization'] = 'Bearer $_token';
+      request.files.add(http.MultipartFile.fromBytes('upload', file.bytes!, filename: file.name, contentType: mime));
+      final streamed = await request.send();
+      final response = await http.Response.fromStream(streamed);
+      final data = _decode(response.body);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw _friendlyError(response.statusCode, data);
+      }
+      if (mounted) setState(() => _pendingAttachments.add({'id': data['id'], 'name': data['original_name'] ?? file.name}));
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  Future<void> _removePendingAttachment(Map<String, dynamic> attachment) async {
+    final id = (attachment['id'] as num?)?.toInt();
+    if (id != null && _token != null) {
+      try { await http.delete(_base.resolve('/api/v1/files/$id'), headers: _headers()); } catch (_) {}
+    }
+    if (mounted) setState(() => _pendingAttachments.remove(attachment));
+  }
+
   Future<_StreamResult> _streamMessage(
     int conversationId,
     String text, {
     bool regenerate = false,
+    List<int> attachmentIds = const [],
   }) async {
     final request = http.Request(
       'POST',
@@ -511,7 +616,7 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
       ),
     );
     request.headers.addAll(_headers());
-    request.body = jsonEncode({'message': text});
+    request.body = jsonEncode({'message': text, 'attachment_ids': attachmentIds});
     final client = http.Client();
     _streamClient = client;
     _stopRequested = false;
@@ -631,8 +736,12 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
   }
 
   Future<void> _sendMessage() async {
-    final text = _message.text.trim();
-    if (text.isEmpty || _busy || _token == null) return;
+    final enteredText = _message.text.trim();
+    if ((enteredText.isEmpty && _pendingAttachments.isEmpty) || _busy || _uploading || _token == null) return;
+    final text = enteredText.isEmpty
+        ? (Localizations.localeOf(context).languageCode == 'ar' ? 'حلل المرفق من فضلك' : 'Please analyze the attachment.')
+        : enteredText;
+    final attachmentIds = _pendingAttachments.map((item) => (item['id'] as num).toInt()).toList();
     Map<String, dynamic>? optimisticUserMessage;
     setState(() {
       _busy = true;
@@ -644,7 +753,7 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
       if (id == null) throw _strings.conversationCreateFailed;
       final userMessage = <String, dynamic>{
         'role': 'user',
-        'content': text,
+        'content': '$text${_pendingAttachments.isEmpty ? '' : '\n📎 ${_pendingAttachments.map((item) => item['name']).join(', ')}'}',
         'created_at': DateTime.now().toIso8601String(),
       };
       optimisticUserMessage = userMessage;
@@ -653,8 +762,17 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
         _message.clear();
       });
       _scrollToEnd();
-      final streamed = await _streamMessage(id, text);
-      if (!streamed.stopped) await _loadConversations();
+      final streamed = await _streamMessage(id, text, attachmentIds: attachmentIds);
+      if (!streamed.stopped) {
+        await _loadConversations();
+        for (final attachment in List<Map<String, dynamic>>.from(_pendingAttachments)) {
+          final fileId = (attachment['id'] as num?)?.toInt();
+          if (fileId != null) {
+            try { await http.delete(_base.resolve('/api/v1/files/$fileId'), headers: _headers()); } catch (_) {}
+          }
+        }
+        setState(() => _pendingAttachments.clear());
+      }
       if (streamed.creditBalance != null) {
         _creditBalance = streamed.creditBalance!;
       } else {
@@ -675,55 +793,47 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
 
   Future<void> _switchConversation() async {
     if (_conversations.isEmpty) return;
+    var query = '';
     final selected = await showModalBottomSheet<int>(
       context: context,
       backgroundColor: AppColors.surface,
-      builder: (context) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            ListTile(title: Text(_strings.chatHistory)),
-            ..._conversations.map((item) {
-              final id = (item['id'] as num).toInt();
-              return ListTile(
-                leading: const Icon(Icons.chat_bubble_outline),
-                title: Text(
-                    item['title']?.toString() ?? _strings.conversationFallback),
-                selected: _conversationId == id,
-                trailing: PopupMenuButton<String>(
-                  onSelected: (action) {
-                    if (action == 'rename') {
-                      _renameConversation(
-                        id,
-                        item['title']?.toString() ??
-                            _strings.conversationFallback,
-                      );
-                    } else if (action == 'delete') {
-                      _deleteConversation(id);
-                    }
-                  },
-                  itemBuilder: (_) => [
-                    PopupMenuItem(
-                      value: 'rename',
-                      child: Text(
-                          Localizations.localeOf(context).languageCode == 'ar'
-                              ? 'إعادة تسمية'
-                              : 'Rename'),
-                    ),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Text(
-                          Localizations.localeOf(context).languageCode == 'ar'
-                              ? 'حذف'
-                              : 'Delete'),
-                    ),
-                  ],
-                ),
-                onTap: () => Navigator.pop(context, id),
-              );
-            }),
-          ],
-        ),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final visible = _conversations.where((item) =>
+              (item['title']?.toString() ?? '').toLowerCase().contains(query.toLowerCase())).toList();
+          return SafeArea(
+            child: SizedBox(height: MediaQuery.sizeOf(context).height * 0.72,
+              child: Column(children: [
+                Padding(padding: const EdgeInsets.all(AppSpacing.md), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                  Text(_strings.chatHistory, style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: AppSpacing.sm),
+                  TextField(decoration: InputDecoration(prefixIcon: const Icon(Icons.search), hintText: Localizations.localeOf(context).languageCode == 'ar' ? 'ابحث باسم المحادثة' : 'Search conversations', filled: true), onChanged: (value) { query = value.trim(); setDialogState(() {}); }),
+                ])),
+                Expanded(child: visible.isEmpty
+                  ? Center(child: Text(_strings.noData))
+                  : ListView(children: visible.map((item) {
+                    final id = (item['id'] as num).toInt();
+                    return ListTile(
+                      leading: const Icon(Icons.chat_bubble_outline),
+                      title: Text(item['title']?.toString() ?? _strings.conversationFallback, maxLines: 1, overflow: TextOverflow.ellipsis),
+                      selected: _conversationId == id,
+                      trailing: PopupMenuButton<String>(
+                        onSelected: (action) {
+                          if (action == 'rename') _renameConversation(id, item['title']?.toString() ?? _strings.conversationFallback);
+                          if (action == 'delete') _deleteConversation(id);
+                        },
+                        itemBuilder: (_) => [
+                          PopupMenuItem(value: 'rename', child: Text(Localizations.localeOf(context).languageCode == 'ar' ? 'إعادة تسمية' : 'Rename')),
+                          PopupMenuItem(value: 'delete', child: Text(Localizations.localeOf(context).languageCode == 'ar' ? 'حذف' : 'Delete')),
+                        ],
+                      ),
+                      onTap: () => Navigator.pop(sheetContext, id),
+                    );
+                  }).toList())),
+              ]),
+            ),
+          );
+        },
       ),
     );
     if (selected == null) return;
@@ -909,9 +1019,21 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
                 onPressed: _busy ? null : _newConversation,
                 icon: const Icon(Icons.add_comment_outlined),
               ),
+              PopupMenuButton<String>(
+                tooltip: Localizations.localeOf(context).languageCode == 'ar' ? 'المزيد' : 'More',
+                icon: const Icon(Icons.more_vert),
+                onSelected: (value) { if (value == 'settings') _showAccountSettings(); if (value == 'history') _switchConversation(); if (value == 'logout') _signOut(); },
+                itemBuilder: (_) => [
+                  PopupMenuItem(value: 'history', child: Text(_strings.chatHistory)),
+                  PopupMenuItem(value: 'settings', child: Text(Localizations.localeOf(context).languageCode == 'ar' ? 'الإعدادات والحساب' : 'Settings & account')),
+                  PopupMenuItem(value: 'logout', child: Text(_strings.signOut)),
+                ],
+              ),
               const Spacer(),
-              Text(_strings.conversationLabel,
-                  style: const TextStyle(color: AppColors.textMuted)),
+              Flexible(child: Text(
+                (_conversations.where((item) => (item['id'] as num?)?.toInt() == _conversationId).isNotEmpty ? _conversations.firstWhere((item) => (item['id'] as num?)?.toInt() == _conversationId)['title']?.toString() : null) ?? _strings.conversationLabel,
+                maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.w600))),
               InkWell(
                 onTap: _showCreditHistory,
                 borderRadius: BorderRadius.circular(18),
@@ -937,11 +1059,6 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
                     ],
                   ),
                 ),
-              ),
-              IconButton(
-                tooltip: _strings.signOut,
-                onPressed: _signOut,
-                icon: const Icon(Icons.logout_outlined),
               ),
             ],
           ),
@@ -1089,9 +1206,16 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
       ),
       child: SafeArea(
         top: false,
-        child: Row(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          if (_pendingAttachments.isNotEmpty)
+            SizedBox(height: 42, child: ListView(scrollDirection: Axis.horizontal, children: _pendingAttachments.map((item) => Padding(
+              padding: const EdgeInsetsDirectional.only(end: 6),
+              child: InputChip(avatar: const Icon(Icons.attach_file, size: 16), label: Text(item['name'].toString(), maxLines: 1, overflow: TextOverflow.ellipsis), onDeleted: () => _removePendingAttachment(item)),
+            )).toList())),
+          Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
+            IconButton.filledTonal(onPressed: (_busy || _uploading) ? null : _pickAndUploadFile, tooltip: Localizations.localeOf(context).languageCode == 'ar' ? 'إرفاق ملف أو صورة' : 'Attach file or image', icon: _uploading ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.attach_file)),
             IconButton.filledTonal(
               onPressed: _busy ? null : _toggleSpeech,
               tooltip:

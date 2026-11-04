@@ -12,8 +12,8 @@ def test_stream_request_id_replays_completed_response_without_second_charge(
     settings.secret_key = "unit-test-secret-that-is-not-used-in-production"
     app.dependency_overrides[get_db] = override_get_db
     monkeypatch.setattr(
-        "backend.app.routes.chat.ChatService.stream_reply",
-        lambda self, message, history: iter(["hello", " world"]),
+        "backend.app.routes.chat.ChatService.stream_reply_fastest",
+        lambda self, message, history, attachments=None: iter(["hello", " world"]),
     )
     client = TestClient(app)
     token = generate_token(test_user.id, session_version=test_user.session_version)

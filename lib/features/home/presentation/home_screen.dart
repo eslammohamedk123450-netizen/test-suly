@@ -21,7 +21,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   // Open on the task-oriented home screen, matching the supplied reference.
-  int _selectedIndex = sulyNavIndex('home');
+  int _selectedIndex = sulyNavIndex('new_chat');
 
   // Sidebar collapse state (desktop only).
   bool _sidebarCollapsed = false;

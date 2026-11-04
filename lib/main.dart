@@ -57,7 +57,7 @@ class _SulyAiAppState extends State<SulyAiApp> {
   Widget build(BuildContext context) => MaterialApp(
         title: 'SULY AI',
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.dark(
+        theme: AppTheme.light(
           fontFamily: _locale.languageCode == 'ar' ? 'Tajawal' : 'Inter',
         ),
         locale: _locale,
@@ -80,7 +80,7 @@ class _SulyShellState extends State<_SulyShell> {
   late int _index = switch (Uri.base.queryParameters['screen']) {
     'chat' => 1,
     'admin' => 2,
-    _ => 0,
+    _ => 1,
   };
 
   @override
@@ -92,7 +92,7 @@ class _SulyShellState extends State<_SulyShell> {
       index: _index,
       children: [
         _HomeLanding(onStartChat: () => setState(() => _index = 1)),
-        const FunctionalChatScreen(),
+        FunctionalChatScreen(onLocaleChanged: widget.onLocaleChanged),
         const AdminScreen(),
       ],
     );

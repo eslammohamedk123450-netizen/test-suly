@@ -1,4 +1,5 @@
 import json
+import time
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -141,3 +142,68 @@ def test_stream_complete_yields_openai_sse_deltas():
     with patch("backend.app.services.chat_service.urlopen", return_value=response):
         result = list(ChatService(None)._stream_complete(provider, model, "question", []))
     assert result == ["Hel", "lo"]
+
+
+def test_provider_request_includes_image_and_text_attachments():
+    settings.credential_encryption_key = Fernet.generate_key().decode()
+    provider = SimpleNamespace(
+        provider_type="openai",
+        base_url=None,
+        encrypted_api_key=encrypt_secret("unit-test-key"),
+        timeout_seconds=2,
+    )
+    model = SimpleNamespace(model_identifier="vision-model")
+    attachments = [
+        {"name": "photo.png", "image_data_url": "data:image/png;base64,aGVsbG8="},
+        {"name": "notes.txt", "text": "A text file"},
+    ]
+
+    request, _ = ChatService(None)._provider_request(
+        provider, model, "Describe these attachments", [], stream=True,
+        attachments=attachments,
+    )
+
+    payload = json.loads(request.data)
+    content = payload["messages"][-1]["content"]
+    assert content[0] == {"type": "text", "text": "Describe these attachments"}
+    assert content[1] == {
+        "type": "image_url",
+        "image_url": {"url": "data:image/png;base64,aGVsbG8="},
+    }
+    assert "A text file" in content[2]["text"]
+
+
+def test_fastest_stream_wins_and_three_slow_races_auto_disable_a_model():
+    fast_model = SimpleNamespace(
+        id=101, enabled=True, consecutive_failures=0, auto_disabled=False,
+        last_response_latency_ms=None, last_response_status=None,
+        last_response_error=None, last_response_at=None,
+    )
+    slow_model = SimpleNamespace(
+        id=102, enabled=True, consecutive_failures=0, auto_disabled=False,
+        last_response_latency_ms=None, last_response_status=None,
+        last_response_error=None, last_response_at=None,
+    )
+    db = SimpleNamespace(commit=lambda: None)
+    service = ChatService(db)
+    provider = SimpleNamespace()
+    service._candidates = lambda: [(fast_model, provider), (slow_model, provider)]
+
+    def mock_stream(_provider, model, *_args, **_kwargs):
+        if model.id == fast_model.id:
+            yield "fast"
+            yield " reply"
+        else:
+            time.sleep(0.08)
+            yield "late"
+
+    with patch.object(service, "_stream_complete", side_effect=mock_stream):
+        for _ in range(3):
+            assert "".join(service.stream_reply_fastest("question", first_token_timeout=0.03)) == "fast reply"
+
+    assert fast_model.last_response_status == "fast"
+    assert fast_model.consecutive_failures == 0
+    assert slow_model.last_response_status == "slow"
+    assert slow_model.consecutive_failures == 3
+    assert slow_model.enabled is False
+    assert slow_model.auto_disabled is True

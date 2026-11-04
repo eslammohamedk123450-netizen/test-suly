@@ -13,6 +13,7 @@ class ChatTurn(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=4000)
     history: list[ChatTurn] = Field(default_factory=list, max_length=40)
+    attachment_ids: list[int] = Field(default_factory=list, max_length=5)
 
 
 class UsageRecordCreate(BaseModel):

@@ -1,6 +1,9 @@
 
 """Chat API routes backed by configured AI providers."""
 import json
+import base64
+from io import BytesIO
+from pathlib import Path
 from time import perf_counter
 from uuid import uuid4
 from datetime import datetime, timezone
@@ -16,6 +19,8 @@ from backend.app.db.models.admin import AIModel, AIProvider, Conversation, Credi
 from backend.app.db.models.chat_request import ChatRequestRecord
 from backend.app.db.models.usage import UsageRecord
 from backend.app.db.models.user import User
+from backend.app.db.models.file import UserFile
+from backend.app.core.config import settings
 from backend.app.db.session import get_db
 from backend.app.schemas.chat import ChatRequest, ChatResponse, ConversationOut, MessageOut
 from backend.app.services.chat_service import ChatProviderError, ChatService
@@ -23,6 +28,60 @@ from backend.app.services.rate_limiter import RateLimiter
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 _rate_limiter = RateLimiter(limit=100, period=3600)
+
+
+def _load_chat_attachments(db: Session, attachment_ids: list[int], user_id: int) -> list[dict]:
+    if not attachment_ids:
+        return []
+    if len(attachment_ids) > 5 or len(set(attachment_ids)) != len(attachment_ids):
+        raise HTTPException(status_code=422, detail="Choose up to five different attachments")
+    items = db.query(UserFile).filter(
+        UserFile.id.in_(attachment_ids), UserFile.user_id == user_id,
+        UserFile.deleted_at.is_(None),
+    ).all()
+    by_id = {item.id: item for item in items}
+    if len(by_id) != len(attachment_ids):
+        raise HTTPException(status_code=404, detail="An attachment was not found or is not owned by this account")
+    total = sum(item.size_bytes for item in items)
+    if total > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Combined attachment size exceeds 10 MB")
+    result: list[dict] = []
+    upload_root = Path(settings.upload_dir).resolve()
+    for file_id in attachment_ids:
+        item = by_id[file_id]
+        target = (upload_root / str(user_id) / item.storage_name).resolve()
+        if not target.is_relative_to(upload_root / str(user_id)) or not target.is_file():
+            raise HTTPException(status_code=404, detail="Attachment content is unavailable")
+        raw = target.read_bytes()
+        if item.content_type.startswith("image/"):
+            result.append({
+                "name": item.original_name,
+                "image_data_url": f"data:{item.content_type};base64,{base64.b64encode(raw).decode('ascii')}",
+            })
+        elif item.content_type == "application/pdf":
+            try:
+                from pypdf import PdfReader
+                pages = PdfReader(BytesIO(raw)).pages
+                if len(pages) > 100:
+                    raise HTTPException(status_code=413, detail="PDF exceeds the 100-page analysis limit")
+                extracted: list[str] = []
+                for page in pages:
+                    extracted.append(page.extract_text() or "")
+                    if sum(map(len, extracted)) >= 100000:
+                        break
+                text = "\n".join(extracted)
+            except HTTPException:
+                raise
+            except Exception as exc:
+                raise HTTPException(status_code=422, detail=f"Could not extract text from {item.original_name}") from exc
+            result.append({"name": item.original_name, "text": text[:100000]})
+        else:
+            try:
+                text = raw.decode("utf-8-sig")
+            except UnicodeDecodeError as exc:
+                raise HTTPException(status_code=415, detail=f"Unsupported text encoding in {item.original_name}") from exc
+            result.append({"name": item.original_name, "text": text[:100000]})
+    return result
 
 
 def check_rate_limit(user: User = Depends(get_current_user_record)):
@@ -63,8 +122,12 @@ def chat(
     _rate_info=Depends(check_rate_limit),
 ) -> ChatResponse:
     message_text = request.message.strip()
-    if not message_text:
-        raise HTTPException(status_code=422, detail="Message cannot be empty")
+    if not message_text and not request.attachment_ids:
+        raise HTTPException(status_code=422, detail="Message or attachment is required")
+    attachments = _load_chat_attachments(db, request.attachment_ids, current_user.id)
+    if attachments:
+        attachment_names = ", ".join(item["name"] for item in attachments)
+        message_text = f"{message_text or 'Please analyze the attached file(s).'}\n[Attachments: {attachment_names}]"
 
     conversation = (
         _conversation_or_404(db, conversation_id, current_user.id)
@@ -89,7 +152,9 @@ def chat(
         history = [item.model_dump() for item in request.history][-40:]
 
     try:
-        reply = ChatService(db).get_reply(message_text, history)
+        chat_service = ChatService(db)
+        prompt = message_text or "Please analyze the attached file(s)."
+        reply = chat_service.get_reply_fastest(prompt, history, attachments)
     except ChatProviderError:
         # All providers failed - no deduction, no response added
         raise HTTPException(
@@ -131,6 +196,8 @@ def chat(
         role="assistant",
         content=reply,
     ))
+    if conversation.title == "محادثة جديدة":
+        conversation.title = message_text[:80].strip() or "محادثة جديدة"
     db.add(CreditTransaction(
         user_id=current_user.id,
         amount=-1,
@@ -160,8 +227,12 @@ def stream_chat(
 ) -> StreamingResponse:
     """Stream SSE deltas with durable request state and idempotent charging."""
     message_text = request.message.strip()
-    if not message_text:
-        raise HTTPException(status_code=422, detail="Message cannot be empty")
+    if not message_text and not request.attachment_ids:
+        raise HTTPException(status_code=422, detail="Message or attachment is required")
+    attachments = _load_chat_attachments(db, request.attachment_ids, current_user.id)
+    if attachments:
+        attachment_names = ", ".join(item["name"] for item in attachments)
+        message_text = f"{message_text or 'Please analyze the attached file(s).'}\n[Attachments: {attachment_names}]"
     if current_user.credit_balance < 1:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
@@ -224,7 +295,10 @@ def stream_chat(
     def events() -> Iterator[str]:
         chunks: list[str] = []
         try:
-            for delta in ChatService(db).stream_reply(message_text, history):
+            chat_service = ChatService(db)
+            prompt = message_text or "Please analyze the attached file(s)."
+            response_stream = chat_service.stream_reply_fastest(prompt, history, attachments)
+            for delta in response_stream:
                 chunks.append(delta)
                 yield f"data: {json.dumps({'delta': delta}, ensure_ascii=False)}\n\n"
             reply = "".join(chunks).strip()
@@ -273,6 +347,8 @@ def stream_chat(
                 role="assistant",
                 content=reply,
             ))
+            if conversation.title == "محادثة جديدة":
+                conversation.title = message_text[:80].strip() or "محادثة جديدة"
             db.add(CreditTransaction(
                 user_id=user_id,
                 amount=-1,

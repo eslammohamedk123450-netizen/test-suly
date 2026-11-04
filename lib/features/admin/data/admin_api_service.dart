@@ -76,12 +76,45 @@ class AdminApiService {
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
+  Future<void> deleteProvider(int id) async {
+    _assertSecureTransport();
+    final response = await http.delete(Uri.parse('${ApiConfig.baseUrl}/api/v1/admin/providers/$id'), headers: _headers);
+    _ensureOk(response);
+  }
+
+  Future<Map<String, dynamic>> adjustCredits(int userId, int amount, String reason) async {
+    _assertSecureTransport();
+    final response = await http.post(Uri.parse('${ApiConfig.baseUrl}/api/v1/admin/users/$userId/credits'), headers: _headers, body: jsonEncode({'amount': amount, 'reason': reason}));
+    _ensureOk(response);
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
   Future<void> createModel(Map<String, dynamic> model) async {
     _assertSecureTransport();
     final response = await http.post(
       Uri.parse('${ApiConfig.baseUrl}/api/v1/admin/models'),
       headers: _headers,
       body: jsonEncode(model),
+    );
+    _ensureOk(response);
+  }
+
+  Future<void> updateModelPriority(int modelId, int priority) async {
+    _assertSecureTransport();
+    final response = await http.patch(
+      Uri.parse('${ApiConfig.baseUrl}/api/v1/admin/models/$modelId/priority'),
+      headers: _headers,
+      body: jsonEncode({'priority': priority}),
+    );
+    _ensureOk(response);
+  }
+
+  Future<void> setModelEnabled(int modelId, bool enabled) async {
+    _assertSecureTransport();
+    final response = await http.patch(
+      Uri.parse('${ApiConfig.baseUrl}/api/v1/admin/models/$modelId/enabled'),
+      headers: _headers,
+      body: jsonEncode({'enabled': enabled}),
     );
     _ensureOk(response);
   }

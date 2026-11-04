@@ -87,6 +87,12 @@ class AIModel(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     priority: Mapped[int] = mapped_column(Integer, default=100)
     fallback_eligible: Mapped[bool] = mapped_column(Boolean, default=True)
+    consecutive_failures: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    auto_disabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    last_response_latency_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    last_response_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    last_response_error: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    last_response_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

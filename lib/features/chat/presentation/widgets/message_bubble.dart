@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_spacing.dart';
-import '../../../features/chat/domain/message.dart';
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_spacing.dart';
+import '../../domain/message.dart';
 import 'markdown_message.dart';
 
 /// فقاعة رسالة واحدة مع دعم النسخ وإظهار حالة الإرسال/إعادة التوليد.

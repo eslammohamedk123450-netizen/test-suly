@@ -4,6 +4,7 @@ from backend.app.db.models.project import Project
 from backend.app.db.models.user import User
 from backend.app.db.models.file import UserFile
 from backend.app.db.models.chat_request import ChatRequestRecord
+from backend.app.db.models.usage import UsageRecord
 from backend.app.db.models.admin import (
     AIModel,
     AIProvider,
@@ -19,6 +20,7 @@ __all__ = [
     "User",
     "UserFile",
     "ChatRequestRecord",
+    "UsageRecord",
     "Project",
     "SubscriptionPlan",
     "UserSubscription",

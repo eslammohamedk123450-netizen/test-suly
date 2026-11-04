@@ -11,6 +11,7 @@ from backend.app.auth.router import router as auth_router
 from backend.app.routes.chat import router as chat_router
 from backend.app.routes.admin import router as admin_router
 from backend.app.routes.files import router as files_router
+from backend.app.routes.usage import router as usage_router
 
 api_router = APIRouter(prefix=settings.api_v1_prefix)
 
@@ -25,3 +26,4 @@ api_router.include_router(chat_router, tags=["Chat"])
 # Protected administrative routes
 api_router.include_router(admin_router, tags=["Admin"])
 api_router.include_router(files_router, tags=["Files"])
+api_router.include_router(usage_router, tags=["Usage"])

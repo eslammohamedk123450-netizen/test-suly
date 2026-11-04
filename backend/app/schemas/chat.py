@@ -80,3 +80,17 @@ class MessageOut(MessageBase):
     tokens_used: Optional[int] = None
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)
+
+
+class UsageSummaryOut(BaseModel):
+    id: int
+    request_id: str
+    operation: str
+    status: str
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    duration_ms: Optional[float] = None
+    credits_consumed: int
+    cost_usd: Optional[float] = None
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)

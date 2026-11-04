@@ -1,6 +1,7 @@
 
 """Chat API routes backed by configured AI providers."""
 import json
+from time import perf_counter
 from uuid import uuid4
 from datetime import datetime, timezone
 from collections.abc import Iterator
@@ -13,6 +14,7 @@ from sqlalchemy.orm import Session
 from backend.app.auth.router import get_current_user_record
 from backend.app.db.models.admin import AIModel, AIProvider, Conversation, CreditTransaction, Message
 from backend.app.db.models.chat_request import ChatRequestRecord
+from backend.app.db.models.usage import UsageRecord
 from backend.app.db.models.user import User
 from backend.app.db.session import get_db
 from backend.app.schemas.chat import ChatRequest, ChatResponse, ConversationOut, MessageOut
@@ -203,6 +205,7 @@ def stream_chat(
     db.flush()
     request_record_id = request_record.id
     db.commit()
+    started_at = perf_counter()
     user_id = current_user.id
     recent_messages = (
         db.query(Message)
@@ -263,6 +266,14 @@ def stream_chat(
                 reason="AI chat request",
                 idempotency_key=f"chat:{user_id}:{request_key}",
             ))
+            db.add(UsageRecord(
+                user_id=user_id,
+                request_id=request_key,
+                operation="chat_stream",
+                status="completed",
+                duration_ms=(perf_counter() - started_at) * 1000,
+                credits_consumed=1,
+            ))
             conversation.updated_at = datetime.now(timezone.utc)
             db.commit()
             yield f"data: {json.dumps({'done': True, 'credit_balance': new_balance})}\n\n"
@@ -274,6 +285,14 @@ def stream_chat(
                     .where(ChatRequestRecord.id == request_record_id)
                     .values(reply="".join(chunks), status="failed")
                 )
+                db.add(UsageRecord(
+                    user_id=user_id,
+                    request_id=request_key,
+                    operation="chat_stream",
+                    status="failed",
+                    duration_ms=(perf_counter() - started_at) * 1000,
+                    credits_consumed=0,
+                ))
                 db.commit()
             yield f"data: {json.dumps({'error': str(exc)})}\n\n"
         finally:

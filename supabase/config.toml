@@ -1,0 +1,3 @@
+# Supabase project metadata for local tooling.
+# Database access remains server-side through FastAPI; do not put service-role keys in Flutter.
+project_id = "kamxjsddjxowodatafqo"

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 /// Shared icon-button building block kept for the original feature draft.
 /// The production chat screen lives under lib/features/chat.
+// ignore: unused_element
 class _IconButton extends StatelessWidget {
   const _IconButton({
     required this.icon,

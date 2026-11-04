@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../core/routing/app_routes.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/constants/app_strings.dart';
 
 /// A single navigation destination in the SULY AI application shell.

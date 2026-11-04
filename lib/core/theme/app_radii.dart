@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 ///Centralized border-radius tokens for SULY AI.
 abstract final class AppRadii {
   AppRadii._();

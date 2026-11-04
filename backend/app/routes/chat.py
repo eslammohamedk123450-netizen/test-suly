@@ -239,6 +239,20 @@ def stream_chat(
             new_balance = result.scalar_one_or_none()
             if new_balance is None:
                 db.rollback()
+                db.execute(
+                    update(ChatRequestRecord)
+                    .where(ChatRequestRecord.id == request_record_id)
+                    .values(reply="".join(chunks), status="failed")
+                )
+                db.add(UsageRecord(
+                    user_id=user_id,
+                    request_id=request_key,
+                    operation="chat_stream",
+                    status="failed",
+                    duration_ms=(perf_counter() - started_at) * 1000,
+                    credits_consumed=0,
+                ))
+                db.commit()
                 yield f"data: {json.dumps({'error': 'Insufficient credit balance.'})}\n\n"
                 return
             db.execute(
@@ -279,21 +293,20 @@ def stream_chat(
             yield f"data: {json.dumps({'done': True, 'credit_balance': new_balance})}\n\n"
         except Exception as exc:
             db.rollback()
-            if chunks:
-                db.execute(
-                    update(ChatRequestRecord)
-                    .where(ChatRequestRecord.id == request_record_id)
-                    .values(reply="".join(chunks), status="failed")
-                )
-                db.add(UsageRecord(
-                    user_id=user_id,
-                    request_id=request_key,
-                    operation="chat_stream",
-                    status="failed",
-                    duration_ms=(perf_counter() - started_at) * 1000,
-                    credits_consumed=0,
-                ))
-                db.commit()
+            db.execute(
+                update(ChatRequestRecord)
+                .where(ChatRequestRecord.id == request_record_id)
+                .values(reply="".join(chunks), status="failed")
+            )
+            db.add(UsageRecord(
+                user_id=user_id,
+                request_id=request_key,
+                operation="chat_stream",
+                status="failed",
+                duration_ms=(perf_counter() - started_at) * 1000,
+                credits_consumed=0,
+            ))
+            db.commit()
             yield f"data: {json.dumps({'error': str(exc)})}\n\n"
         finally:
             db.close()

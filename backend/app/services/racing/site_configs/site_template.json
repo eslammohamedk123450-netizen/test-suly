@@ -1,0 +1,21 @@
+{
+  "name": "site-template",
+  "base_url": "https://replace-with-approved-site.example/chat",
+  "login_url": "https://replace-with-approved-site.example/login",
+  "needs_login": true,
+  "enabled": false,
+  "storage_state_path": null,
+  "selectors": {
+    "chat_input": "textarea",
+    "send_button": "button[type='submit']",
+    "assistant_message": ".assistant-message",
+    "stop_button": "button.stop"
+  },
+  "timeouts": {
+    "response_seconds": 60,
+    "stuck_tab_seconds": 30
+  },
+  "metadata": {
+    "notes": "Replace only after reviewing the site's terms and selectors."
+  }
+}

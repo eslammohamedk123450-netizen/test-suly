@@ -54,6 +54,9 @@ app.*.map.json
 .env.*
 !.env.example
 .suly_uploads/
+browser_sessions/
+storage_state*.json
+**/storage_state*.json
 
 __pycache__/
 *.pyc

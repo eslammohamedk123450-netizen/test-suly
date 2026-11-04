@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     browser_prepare_at: float = 2.0
     web_provider_timeout: float = 60.0
     first_valid_chunk_required: bool = True
+    browser_worker_count: int = 3
+    browser_queue_size: int = 30
     allowed_upload_content_types: list[str] = [
         "application/pdf", "text/plain", "text/markdown", "text/csv",
         "application/json", "image/png", "image/jpeg", "image/webp",

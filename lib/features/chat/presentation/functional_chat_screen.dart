@@ -13,10 +13,15 @@ import '../../auth/data/auth_session.dart';
 import '../../../l10n/generated/app_localizations.dart';
 
 class _StreamResult {
-  const _StreamResult({required this.reply, this.creditBalance});
+  const _StreamResult({
+    required this.reply,
+    this.creditBalance,
+    this.stopped = false,
+  });
 
   final String reply;
   final int? creditBalance;
+  final bool stopped;
 }
 
 class FunctionalChatScreen extends StatefulWidget {
@@ -33,6 +38,8 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
   final _message = TextEditingController();
   final _scroll = ScrollController();
   final _speech = stt.SpeechToText();
+  http.Client? _streamClient;
+  bool _stopRequested = false;
 
   String? _token;
   String? _error;
@@ -62,6 +69,7 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
     _message.dispose();
     _scroll.dispose();
     _speech.stop();
+    _streamClient?.close();
     super.dispose();
   }
 
@@ -473,7 +481,10 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
     );
     request.headers.addAll(_headers());
     request.body = jsonEncode({'message': text});
-    final response = await request.send();
+    final client = http.Client();
+    _streamClient = client;
+    _stopRequested = false;
+    final response = await client.send(request);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final body = _decode(await response.stream.bytesToString());
       if (response.statusCode == 401) await _invalidateSession();
@@ -515,18 +526,32 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
         }
       }
     } catch (error) {
+      if (_stopRequested && reply.isNotEmpty) {
+        return _StreamResult(reply: reply, stopped: true);
+      }
       if (assistantIndex >= 0 && assistantIndex < _messages.length) {
         _messages.removeAt(assistantIndex);
       }
       throw error;
+    } finally {
+      if (identical(_streamClient, client)) _streamClient = null;
+      client.close();
     }
     if (reply.trim().isEmpty) throw _strings.emptyModelReply;
     return _StreamResult(reply: reply, creditBalance: creditBalance);
   }
 
+  void _stopStreaming() {
+    if (_streamClient == null) return;
+    _stopRequested = true;
+    _streamClient!.close();
+    if (mounted) setState(() => _error = null);
+  }
+
   Future<void> _sendMessage() async {
     final text = _message.text.trim();
     if (text.isEmpty || _busy || _token == null) return;
+    Map<String, dynamic>? optimisticUserMessage;
     setState(() {
       _busy = true;
       _error = null;
@@ -540,20 +565,23 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
         'content': text,
         'created_at': DateTime.now().toIso8601String(),
       };
+      optimisticUserMessage = userMessage;
       setState(() {
         _messages.add(userMessage);
         _message.clear();
       });
       _scrollToEnd();
       final streamed = await _streamMessage(id, text);
-      await _loadConversations();
+      if (!streamed.stopped) await _loadConversations();
       if (streamed.creditBalance != null) {
         _creditBalance = streamed.creditBalance!;
       } else {
         await _loadCreditBalance();
       }
     } catch (error) {
-      if (_messages.isNotEmpty && _messages.last == userMessage) {
+      if (optimisticUserMessage != null &&
+          _messages.isNotEmpty &&
+          _messages.last == optimisticUserMessage) {
         _messages.removeLast();
       }
       _error = error.toString().replaceFirst('Exception: ', '');
@@ -975,9 +1003,9 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
             ),
             const SizedBox(width: AppSpacing.sm),
             IconButton.filled(
-              onPressed: _busy ? null : _sendMessage,
-              tooltip: _strings.send,
-              icon: const Icon(Icons.send),
+              onPressed: _busy ? _stopStreaming : _sendMessage,
+              tooltip: _busy ? 'إيقاف التوليد' : _strings.send,
+              icon: Icon(_busy ? Icons.stop_rounded : Icons.send),
             ),
           ],
         ),

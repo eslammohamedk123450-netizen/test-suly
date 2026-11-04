@@ -9,6 +9,7 @@ import '../../../core/config/api_config.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/widgets/suly_brand_mark.dart';
+import '../../auth/data/auth_session.dart';
 import '../../../l10n/generated/app_localizations.dart';
 
 class FunctionalChatScreen extends StatefulWidget {
@@ -68,10 +69,12 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
         );
         if (response.statusCode == 200) {
           _token = saved;
+          AuthSession.accessToken = saved;
           await _loadConversations();
           await _loadCreditBalance();
         } else {
           await prefs.remove(_tokenKey);
+          AuthSession.clear();
         }
       } catch (_) {
         _error = _strings.connectionError;
@@ -94,6 +97,7 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
       body: jsonEncode(body),
     );
     final decoded = _decode(response.body);
+    if (response.statusCode == 401) await _invalidateSession();
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw _friendlyError(response.statusCode, decoded);
     }
@@ -103,10 +107,22 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
   Future<dynamic> _get(String path) async {
     final response = await http.get(_base.resolve(path), headers: _headers());
     final decoded = _decode(response.body);
+    if (response.statusCode == 401) await _invalidateSession();
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw _friendlyError(response.statusCode, decoded);
     }
     return decoded;
+  }
+
+  Future<void> _invalidateSession() async {
+    AuthSession.clear();
+    _token = null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_tokenKey);
+    } catch (_) {
+      // The in-memory session is still invalidated when storage is unavailable.
+    }
   }
 
   Map<String, dynamic> _decode(String body) {
@@ -169,6 +185,7 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
       final token = login['access_token']?.toString();
       if (token == null || token.isEmpty) throw _strings.missingAccessToken;
       _token = token;
+      AuthSession.accessToken = token;
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_tokenKey, token);
       await _loadConversations();
@@ -194,6 +211,7 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
     }
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_tokenKey);
+    AuthSession.clear();
     setState(() {
       _token = null;
       _conversationId = null;
@@ -340,6 +358,107 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
     _conversations.insert(0, result);
   }
 
+  Future<void> _renameConversation(int id, String currentTitle) async {
+    final controller = TextEditingController(text: currentTitle);
+    final title = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(Localizations.localeOf(context).languageCode == 'ar'
+            ? 'إعادة تسمية المحادثة'
+            : 'Rename conversation'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 255,
+          decoration: InputDecoration(
+            hintText: _strings.conversationFallback,
+          ),
+          onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: Text(_strings.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+            child: Text(Localizations.localeOf(context).languageCode == 'ar'
+                ? 'حفظ'
+                : 'Save'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (title == null || title.isEmpty || _token == null) return;
+    try {
+      final response = await http.patch(
+        _base.resolve('/api/v1/chat/conversations/$id/rename'),
+        headers: _headers(),
+        body: jsonEncode({'new_title': title}),
+      );
+      if (response.statusCode == 401) await _invalidateSession();
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw _friendlyError(response.statusCode, _decode(response.body));
+      }
+      await _loadConversations();
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  Future<void> _deleteConversation(int id) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: Text(Localizations.localeOf(context).languageCode == 'ar'
+            ? 'حذف المحادثة؟'
+            : 'Delete conversation?'),
+        content: Text(Localizations.localeOf(context).languageCode == 'ar'
+            ? 'سيتم حذف الرسائل المرتبطة بها نهائيًا.'
+            : 'All messages in this conversation will be deleted.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(_strings.cancel),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(Localizations.localeOf(context).languageCode == 'ar'
+                ? 'حذف'
+                : 'Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || _token == null) return;
+    try {
+      final response = await http.delete(
+        _base.resolve('/api/v1/chat/conversations/$id'),
+        headers: _headers(),
+      );
+      if (response.statusCode == 401) await _invalidateSession();
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw _friendlyError(response.statusCode, _decode(response.body));
+      }
+      _conversations.removeWhere((item) => (item['id'] as num?)?.toInt() == id);
+      if (_conversationId == id) {
+        _conversationId = null;
+        _messages = [];
+        if (_conversations.isNotEmpty) {
+          _conversationId = (_conversations.first['id'] as num).toInt();
+          await _loadMessages(_conversationId!);
+        }
+      }
+      if (mounted) setState(() {});
+    } catch (error) {
+      if (mounted) setState(() => _error = error.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
   Future<void> _sendMessage() async {
     final text = _message.text.trim();
     if (text.isEmpty || _busy || _token == null) return;
@@ -410,6 +529,32 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
                 title: Text(
                     item['title']?.toString() ?? _strings.conversationFallback),
                 selected: _conversationId == id,
+                trailing: PopupMenuButton<String>(
+                  onSelected: (action) {
+                    if (action == 'rename') {
+                      _renameConversation(
+                        id,
+                        item['title']?.toString() ?? _strings.conversationFallback,
+                      );
+                    } else if (action == 'delete') {
+                      _deleteConversation(id);
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: 'rename',
+                      child: Text(Localizations.localeOf(context).languageCode == 'ar'
+                          ? 'إعادة تسمية'
+                          : 'Rename'),
+                    ),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text(Localizations.localeOf(context).languageCode == 'ar'
+                          ? 'حذف'
+                          : 'Delete'),
+                    ),
+                  ],
+                ),
                 onTap: () => Navigator.pop(context, id),
               );
             }),

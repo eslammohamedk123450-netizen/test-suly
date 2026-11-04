@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     auth_token_expire_seconds: int = 3600
     admin_token_expire_seconds: int = 1800
     password_hash_algorithm: str = "sha256"
+    upload_dir: str = "./.suly_uploads"
+    max_upload_size_bytes: int = 10 * 1024 * 1024
+    allowed_upload_content_types: list[str] = [
+        "application/pdf", "text/plain", "text/markdown", "text/csv",
+        "application/json", "image/png", "image/jpeg", "image/webp",
+    ]
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

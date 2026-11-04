@@ -53,6 +53,7 @@ app.*.map.json
 .env
 .env.*
 !.env.example
+.suly_uploads/
 
 __pycache__/
 *.pyc

@@ -2,6 +2,7 @@
 
 from backend.app.db.models.project import Project
 from backend.app.db.models.user import User
+from backend.app.db.models.file import UserFile
 from backend.app.db.models.admin import (
     AIModel,
     AIProvider,
@@ -15,6 +16,7 @@ from backend.app.db.models.admin import (
 
 __all__ = [
     "User",
+    "UserFile",
     "Project",
     "SubscriptionPlan",
     "UserSubscription",

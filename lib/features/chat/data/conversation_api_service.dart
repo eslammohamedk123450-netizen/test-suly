@@ -24,6 +24,10 @@ class ConversationApiException implements Exception {
 /// conversation belongs to the authenticated user and must remain consistent
 /// with the backend record.
 class ConversationApiService {
+  ConversationApiService({http.Client? client}) : _client = client;
+
+  final http.Client? _client;
+
   Uri _uri(String path) => Uri.parse('${ApiConfig.baseUrl}/api/v1/chat$path');
 
   Map<String, String> get _headers => <String, String>{
@@ -79,8 +83,12 @@ class ConversationApiService {
     final title = json['title'];
     final createdAt = DateTime.tryParse('${json['created_at']}');
     final updatedAt = DateTime.tryParse('${json['updated_at']}');
-    if (id == null || title is! String || createdAt == null || updatedAt == null) {
-      throw const ConversationApiException('استجابة محادثة غير صالحة من الخادم.');
+    if (id == null ||
+        title is! String ||
+        createdAt == null ||
+        updatedAt == null) {
+      throw const ConversationApiException(
+          'استجابة محادثة غير صالحة من الخادم.');
     }
     return Conversation(
       id: '$id',
@@ -96,10 +104,13 @@ class ConversationApiService {
     final role = json['role'];
     final content = json['content'];
     final timestamp = DateTime.tryParse('${json['created_at']}');
-    if (id == null || conversationId == null ||
+    if (id == null ||
+        conversationId == null ||
         (role != 'user' && role != 'assistant') ||
-        content is! String || timestamp == null) {
-      throw const ConversationApiException('استجابة رسالة غير صالحة من الخادم.');
+        content is! String ||
+        timestamp == null) {
+      throw const ConversationApiException(
+          'استجابة رسالة غير صالحة من الخادم.');
     }
     return Message(
       id: '$id',
@@ -160,10 +171,16 @@ class ConversationApiService {
       final uri = _uri(path);
       final encodedBody = body == null ? null : jsonEncode(body);
       final response = switch (method) {
-        'POST' => await http.post(uri, headers: _headers, body: encodedBody),
-        'PATCH' => await http.patch(uri, headers: _headers, body: encodedBody),
-        'DELETE' => await http.delete(uri, headers: _headers),
-        _ => await http.get(uri, headers: _headers),
+        'POST' =>
+          await (_client?.post(uri, headers: _headers, body: encodedBody) ??
+              http.post(uri, headers: _headers, body: encodedBody)),
+        'PATCH' =>
+          await (_client?.patch(uri, headers: _headers, body: encodedBody) ??
+              http.patch(uri, headers: _headers, body: encodedBody)),
+        'DELETE' => await (_client?.delete(uri, headers: _headers) ??
+            http.delete(uri, headers: _headers)),
+        _ => await (_client?.get(uri, headers: _headers) ??
+            http.get(uri, headers: _headers)),
       };
       if (response.statusCode == 401) AuthSession.clear();
       if (response.statusCode < 200 || response.statusCode >= 300) {

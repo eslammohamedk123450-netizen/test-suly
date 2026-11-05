@@ -1,43 +1,42 @@
 import 'package:flutter/material.dart';
-
+import 'package:flutter/services.dart';
 import '../../../../core/theme/app_colors.dart';
 
-/// عارض ماركداون بسيط ومخصص بدون حزم خارجية.
-///
-/// يدعم:
-/// - فقرات عادية
-/// - أكواد برمجية محاطة بـ triple backticks (```code```)
-/// - أكواد مضمنة محاطة بـ single backtick (`code`)
-/// - خطوط عريضة (**text)
-/// - خطوط مائلة (*text)
-///
-/// عند عدم توفر حزمة ماركداون كاملة، يقدم هذا العارض عرضاً آمناً ومنظماً
-/// للأكواد مع زر نسخ مدمج لكل كتلة كود.
+/// عارض ماركداون متقدم يدعم الأكواد مع زر Canvas والتفكير المنطقي
 class MarkdownMessage extends StatelessWidget {
   const MarkdownMessage({
     super.key,
     required this.text,
     required this.isRtl,
+    this.thoughts,
     this.onCopy,
+    this.onOpenCanvas,
   });
 
   final String text;
   final bool isRtl;
+  final String? thoughts;
   final ValueChanged<String>? onCopy;
+  final void Function(String code, String language)? onOpenCanvas;
 
   @override
   Widget build(BuildContext context) {
     final blocks = _parseMarkdown(text);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: blocks.map((block) => _buildBlock(context, block)).toList(),
+      children: [
+        // Thoughts / Reasoning Accordion if present
+        if (thoughts != null && thoughts!.trim().isNotEmpty)
+          _ThoughtsWidget(thoughts: thoughts!, isRtl: isRtl),
+
+        ...blocks.map((block) => _buildBlock(context, block)),
+      ],
     );
   }
 
-  /// تقسيم النص إلى كتل (نص عادي أو كتلة كود).
   List<_MarkdownBlock> _parseMarkdown(String text) {
     final blocks = <_MarkdownBlock>[];
-    final codeRegex = RegExp(r'\`\`\`(\w+)?\n([\s\S]*?)\n\`\`\`');
+    final codeRegex = RegExp(r'```(\w+)?\n([\s\S]*?)\n```');
     int lastEnd = 0;
 
     for (final match in codeRegex.allMatches(text)) {
@@ -75,6 +74,8 @@ class MarkdownMessage extends StatelessWidget {
           code: block.code!,
           language: block.language ?? '',
           onCopy: onCopy,
+          onOpenCanvas: onOpenCanvas,
+          isRtl: isRtl,
         );
       case _BlockType.text:
         return _TextBlock(text: block.text!, isRtl: isRtl);
@@ -107,22 +108,21 @@ class _TextBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // معالجة التنسيق البسيط: **عريض**، *مائل*، `مضمّن`
-    return Text(
-      _stripInlineCode(text),
-      textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
-      style: const TextStyle(
-        color: AppColors.text,
-        height: 1.6,
-        fontSize: 15,
-      ),
-      softWrap: true,
-    );
-  }
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? AppColors.darkText : AppColors.lightText;
 
-  String _stripInlineCode(String text) {
-    // إزالة علامات backtick الفردي من النص المنسّق (الكود المضاف 처리 في كتلة منفصلة)
-    return text.replaceAll(RegExp(r'`'), '');
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: SelectableText(
+        text,
+        textDirection: isRtl ? TextDirection.rtl : TextDirection.ltr,
+        style: TextStyle(
+          color: textColor,
+          height: 1.6,
+          fontSize: 14.5,
+        ),
+      ),
+    );
   }
 }
 
@@ -131,63 +131,130 @@ class _CodeBlock extends StatelessWidget {
     required this.code,
     required this.language,
     this.onCopy,
+    this.onOpenCanvas,
+    this.isRtl = true,
   });
+
   final String code;
   final String language;
   final ValueChanged<String>? onCopy;
+  final void Function(String code, String language)? onOpenCanvas;
+  final bool isRtl;
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF7F7F7);
+    final headerBg = isDark ? const Color(0xFF282828) : const Color(0xFFEBEBEB);
+    final border = isDark ? const Color(0xFF383838) : const Color(0xFFE0E0E0);
+    final textColor = isDark ? AppColors.darkText : AppColors.lightText;
+
     return Container(
-      margin: const EdgeInsets.only(top: 8, bottom: 8),
+      margin: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF0E1424),
+        color: bg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border.all(color: border),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Header
           Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 6,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: AppColors.surfaceSecondary,
+              color: headerBg,
               borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(12),
-                topRight: Radius.circular(12),
+                topLeft: Radius.circular(11),
+                topRight: Radius.circular(11),
               ),
-              border: Border(
-                bottom: BorderSide(color: AppColors.border),
-              ),
+              border: Border(bottom: BorderSide(color: border)),
             ),
             child: Row(
               children: [
-                if (language.isNotEmpty)
-                  Text(
-                    language,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textMuted,
-                      fontWeight: FontWeight.w600,
+                Text(
+                  language.isNotEmpty ? language : 'code',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    fontFamily: 'monospace',
+                    color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                  ),
+                ),
+                const Spacer(),
+
+                // Open in Canvas Button
+                if (onOpenCanvas != null)
+                  InkWell(
+                    onTap: () => onOpenCanvas!(code, language.isEmpty ? 'dart' : language),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryGold.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.splitscreen, size: 12, color: AppColors.primaryGold),
+                          const SizedBox(width: 4),
+                          Text(
+                            isRtl ? 'كانفاس' : 'Canvas',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primaryGold,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                const Spacer(),
-                _CodeCopyButton(code: code, onCopy: onCopy),
+
+                // Copy button
+                InkWell(
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: code));
+                    if (onCopy != null) onCopy!(code);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(isRtl ? 'تم نسخ الكود!' : 'Code copied!'),
+                        duration: const Duration(seconds: 1),
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.copy, size: 12),
+                        const SizedBox(width: 4),
+                        Text(isRtl ? 'نسخ' : 'Copy', style: const TextStyle(fontSize: 11)),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
+
+          // Code text
           Padding(
             padding: const EdgeInsets.all(12),
-            child: SelectableText(
-              code,
-              style: const TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 13,
-                color: AppColors.text,
-                height: 1.5,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SelectableText(
+                code,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 13,
+                  color: textColor,
+                  height: 1.5,
+                ),
               ),
             ),
           ),
@@ -197,23 +264,71 @@ class _CodeBlock extends StatelessWidget {
   }
 }
 
-class _CodeCopyButton extends StatelessWidget {
-  const _CodeCopyButton({required this.code, this.onCopy});
-  final String code;
-  final ValueChanged<String>? onCopy;
+class _ThoughtsWidget extends StatefulWidget {
+  const _ThoughtsWidget({required this.thoughts, required this.isRtl});
+  final String thoughts;
+  final bool isRtl;
+
+  @override
+  State<_ThoughtsWidget> createState() => _ThoughtsWidgetState();
+}
+
+class _ThoughtsWidgetState extends State<_ThoughtsWidget> {
+  bool _expanded = false;
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onCopy == null ? null : () => onCopy!(code),
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Icon(
-          Icons.content_copy,
-          size: 16,
-          color: AppColors.primaryGold,
-        ),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF1B1B1B) : const Color(0xFFF3F3F3);
+    final border = isDark ? const Color(0xFF2C2C2C) : const Color(0xFFE5E5E5);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(10),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  const Icon(Icons.psychology, size: 16, color: AppColors.primaryGold),
+                  const SizedBox(width: 8),
+                  Text(
+                    widget.isRtl ? 'طريقة التفكير والتحليل المنطقي (Thinking)' : 'Reasoning Process',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(_expanded ? Icons.expand_less : Icons.expand_more, size: 18),
+                ],
+              ),
+            ),
+          ),
+          if (_expanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: SelectableText(
+                widget.thoughts,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                  height: 1.5,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

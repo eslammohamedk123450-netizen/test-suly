@@ -1,24 +1,15 @@
 import 'message.dart';
 
-/// نموذج محادثة مستقلة تحتفظ بقائمة رسائلها الخاصة.
-///
-/// الكيان منفصل عن [Message] ولا يُخزّن كل المحادثات ضمن متغير واحد
-/// غير منظم. كل محادثة تحمل معرفها وعنوانها وقائمة رسائلها.
+/// نموذج محادثة مستقلة تحتفظ بقائمة رسائلها الخاصة مع دعم المجلدات والتثبيت
 class Conversation {
-  /// معرف المحادثة الفريد.
   final String id;
-
-  /// عنوان المحادثة المعروض للمستخدم.
   String title;
-
-  /// رسائل هذه المحادثة فقط، مرتبة زمنياً (الأقدم أولاً).
   final List<Message> messages;
-
-  /// وقت إنشاء المحادثة.
   final DateTime createdAt;
-
-  /// وقت تحديث المحادثة آخر مرة (إضافة/تعديل/حذف رسالة).
   DateTime updatedAt;
+  String? folderId;
+  bool isPinned;
+  String model;
 
   Conversation({
     required this.id,
@@ -26,15 +17,16 @@ class Conversation {
     this.messages = const [],
     required this.createdAt,
     DateTime? updatedAt,
+    this.folderId,
+    this.isPinned = false,
+    this.model = 'gpt-4o',
   }) : updatedAt = updatedAt ?? createdAt;
 
-  /// إضافة رسالة إلى نهاية المحادثة وتحديث وقت التعديل.
   void addMessage(Message message) {
     messages.add(message);
     updatedAt = DateTime.now();
   }
 
-  /// استبدال رسالة موجودة بمعرفها (يُستخدم عند إعادة توليد الرد).
   bool replaceMessage(String messageId, Message newMessage) {
     final index = messages.indexWhere((m) => m.id == messageId);
     if (index == -1) return false;
@@ -43,7 +35,6 @@ class Conversation {
     return true;
   }
 
-  /// حذف رسالة بمعرفها.
   bool removeMessage(String messageId) {
     final initialLength = messages.length;
     messages.removeWhere((m) => m.id == messageId);
@@ -54,19 +45,18 @@ class Conversation {
     return false;
   }
 
-  /// إرجاع آخر رسالة في المحادثة أو null إذا كانت فارغة.
   Message? get lastMessage => messages.isNotEmpty ? messages.last : null;
-
-  /// عدد الرسائل في المحادثة.
   int get messageCount => messages.length;
 
-  /// نسخة من المحادثة مع تعديلات مختارة.
   Conversation copyWith({
     String? id,
     String? title,
     List<Message>? messages,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? folderId,
+    bool? isPinned,
+    String? model,
   }) {
     return Conversation(
       id: id ?? this.id,
@@ -74,8 +64,40 @@ class Conversation {
       messages: messages ?? this.messages,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      folderId: folderId ?? this.folderId,
+      isPinned: isPinned ?? this.isPinned,
+      model: model ?? this.model,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
+        'folderId': folderId,
+        'isPinned': isPinned,
+        'model': model,
+        'messages': messages.map((m) => m.toJson()).toList(),
+      };
+
+  factory Conversation.fromJson(Map<String, dynamic> json) => Conversation(
+        id: json['id'] as String? ?? 'conv-${DateTime.now().millisecondsSinceEpoch}',
+        title: json['title'] as String? ?? 'New Chat',
+        createdAt: json['createdAt'] != null
+            ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
+            : DateTime.now(),
+        updatedAt: json['updatedAt'] != null
+            ? DateTime.tryParse(json['updatedAt'].toString()) ?? DateTime.now()
+            : DateTime.now(),
+        folderId: json['folderId'] as String?,
+        isPinned: json['isPinned'] as bool? ?? false,
+        model: json['model'] as String? ?? 'gpt-4o',
+        messages: (json['messages'] as List<dynamic>?)
+                ?.map((m) => Message.fromJson(m as Map<String, dynamic>))
+                .toList() ??
+            [],
+      );
 
   @override
   bool operator ==(Object other) =>

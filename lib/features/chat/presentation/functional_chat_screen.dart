@@ -1,36 +1,24 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:http_parser/http_parser.dart';
-import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
-
-import '../../../core/config/api_config.dart';
+import '../../../core/models/attachment_item.dart';
+import '../../../core/models/canvas_state.dart';
+import '../../../core/models/folder.dart';
+import '../../../core/models/memory_item.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_spacing.dart';
-import '../../../core/widgets/suly_brand_mark.dart';
-import '../../auth/data/auth_session.dart';
-import '../../../l10n/generated/app_localizations.dart';
+import '../domain/conversation.dart';
+import '../domain/message.dart';
+import 'widgets/canvas_panel.dart';
+import 'widgets/chat_drawer.dart';
+import 'widgets/file_inspector_dialog.dart';
 import 'widgets/markdown_message.dart';
-
-class _StreamResult {
-  const _StreamResult({
-    required this.reply,
-    this.creditBalance,
-    this.stopped = false,
-  });
-
-  final String reply;
-  final int? creditBalance;
-  final bool stopped;
-}
+import 'widgets/memory_settings_dialog.dart';
+import 'widgets/slash_commands_menu.dart';
+import 'widgets/voice_mode_dialog.dart';
 
 class FunctionalChatScreen extends StatefulWidget {
   const FunctionalChatScreen({super.key, this.onLocaleChanged});
-
   final ValueChanged<String>? onLocaleChanged;
 
   @override
@@ -38,943 +26,494 @@ class FunctionalChatScreen extends StatefulWidget {
 }
 
 class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
-  static const _legacyTokenKey = 'suly_access_token';
-  final _email = TextEditingController();
-  final _password = TextEditingController();
-  final _message = TextEditingController();
-  final _scroll = ScrollController();
-  final _speech = stt.SpeechToText();
-  http.Client? _streamClient;
-  bool _stopRequested = false;
+  final TextEditingController _message = TextEditingController();
+  final ScrollController _scroll = ScrollController();
 
-  String? _token;
-  String? _accountEmail;
-  String? _accountName;
-  String? _error;
-  bool _ready = false;
-  bool _registering = false;
-  bool _busy = false;
-  bool _listening = false;
-  bool _speechAvailable = false;
-  bool _uploading = false;
-  final List<Map<String, dynamic>> _pendingAttachments = [];
-  List<Map<String, dynamic>> _conversations = [];
-  int? _conversationId;
-  List<Map<String, dynamic>> _messages = [];
-  int _creditBalance = 0;
+  List<Conversation> _conversations = [];
+  String? _currentConvId;
+  List<Folder> _folders = [];
+  List<MemoryItem> _memories = [];
+  bool _memoryEnabled = true;
 
-  Uri get _base => Uri.parse(ApiConfig.baseUrl);
-  AppLocalizations get _strings => AppLocalizations.of(context);
+  String _selectedModel = 'gpt-4o';
+  bool _isWebSearch = false;
+  bool _isReasoning = false;
+  bool _isTemporary = false;
+  bool _isGenerating = false;
+  bool _isDarkTheme = true;
+  bool _isRtl = true;
+
+  // Attached files
+  final List<AttachmentItem> _attachments = [];
+
+  // Canvas Workspace State
+  final CanvasState _canvas = CanvasState(
+    isOpen: false,
+    title: 'code_snippet.dart',
+    content: '// مرحباً بك في مساحة عمل كانفاس\nvoid main() {\n  print("Hello Canvas Workspace!");\n}',
+    language: 'dart',
+    type: 'code',
+  );
+
+  final List<Map<String, String>> _availableModels = [
+    {
+      'id': 'gpt-4o',
+      'name': 'GPT-4o',
+      'tag': 'Flagship',
+      'desc': 'أذكى نموذج لجميع المهام والكتابة والبرمجة',
+    },
+    {
+      'id': 'o1',
+      'name': 'o1',
+      'tag': 'Reasoning',
+      'desc': 'تفكير منطقي وحل المشاكل المعقدة في الرياضيات والبرمجة',
+    },
+    {
+      'id': 'gpt-4o-mini',
+      'name': 'GPT-4o mini',
+      'tag': 'Fast',
+      'desc': 'فائق السرعة وخفيف للمهام اليومية السريعة',
+    },
+    {
+      'id': 'o3-mini',
+      'name': 'o3-mini',
+      'tag': 'STEM',
+      'desc': 'نموذج منطقي متقدم عالي السرعة في الهندسة والمنطق',
+    },
+  ];
 
   @override
   void initState() {
     super.initState();
-    _restoreSession();
+    _loadFromStorage();
   }
 
   @override
   void dispose() {
-    _email.dispose();
-    _password.dispose();
     _message.dispose();
     _scroll.dispose();
-    _speech.stop();
-    _streamClient?.close();
     super.dispose();
   }
 
-  Future<void> _restoreSession() async {
-    String? saved = await AuthSession.restoreAccessToken();
+  Future<void> _loadFromStorage() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final legacyToken = prefs.getString(_legacyTokenKey);
-      if ((saved == null || saved.isEmpty) &&
-          legacyToken != null &&
-          legacyToken.isNotEmpty) {
-        await AuthSession.saveAccessToken(legacyToken);
-        saved = legacyToken;
-      }
-      await prefs.remove(_legacyTokenKey);
-    } catch (_) {
-      if (saved == null || saved.isEmpty) {
-        _error = _strings.connectionError;
-      }
-    }
-    if (saved != null && saved.isNotEmpty) {
-      try {
-        final response = await http.get(
-          _base.resolve('/api/v1/auth/me'),
-          headers: _headers(saved),
-        );
-        if (response.statusCode == 200) {
-          _token = saved;
-          final profile = _decode(response.body);
-          _accountEmail = profile['email']?.toString();
-          _accountName = profile['full_name']?.toString();
-          await _loadConversations();
-          await _loadCreditBalance();
-        } else {
-          await _invalidateSession();
-        }
-      } catch (_) {
-        _error = _strings.connectionError;
-      }
-    }
-    if (mounted) setState(() => _ready = true);
-  }
+      _isDarkTheme = prefs.getBool('chatgpt_dark_theme') ?? true;
+      _memoryEnabled = prefs.getBool('chatgpt_memory_enabled') ?? true;
+      _selectedModel = prefs.getString('chatgpt_model') ?? 'gpt-4o';
 
-  Map<String, String> _headers([String? token]) => {
-        'Content-Type': 'application/json',
-        if ((token ?? _token) != null)
-          'Authorization': 'Bearer ${token ?? _token}',
-      };
-
-  Future<Map<String, dynamic>> _post(String path, Map<String, dynamic> body,
-      {String? token}) async {
-    final response = await http.post(
-      _base.resolve(path),
-      headers: _headers(token),
-      body: jsonEncode(body),
-    );
-    final decoded = _decode(response.body);
-    if (response.statusCode == 401) await _invalidateSession();
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw _friendlyError(response.statusCode, decoded);
-    }
-    return decoded;
-  }
-
-  Future<dynamic> _get(String path) async {
-    final response = await http.get(_base.resolve(path), headers: _headers());
-    final decoded = _decode(response.body);
-    if (response.statusCode == 401) await _invalidateSession();
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw _friendlyError(response.statusCode, decoded);
-    }
-    return decoded;
-  }
-
-  Future<void> _invalidateSession() async {
-    await AuthSession.clearPersisted();
-    _token = null;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_legacyTokenKey);
-    } catch (_) {
-      // The in-memory session is still invalidated when storage is unavailable.
-    }
-  }
-
-  Map<String, dynamic> _decode(String body) {
-    try {
-      final value = jsonDecode(body);
-      if (value is Map<String, dynamic>) return value;
-      return {'data': value};
-    } catch (_) {
-      return <String, dynamic>{};
-    }
-  }
-
-  String _friendlyError(int status, Map<String, dynamic> body) {
-    final detail = body['detail']?.toString() ?? '';
-    if (status == 402) {
-      return _strings.insufficientCredits;
-    }
-    if (status == 503) {
-      return _strings.providerNotReady;
-    }
-    if (status == 401) return _strings.invalidCredentials;
-    if (status == 409) return _strings.emailAlreadyRegistered;
-    if (status == 429) return _strings.tooManyRequests;
-    if (status == 0) return _strings.connectionError;
-    return detail.isNotEmpty ? detail : _strings.requestFailed(status);
-  }
-
-  Future<void> _authenticate() async {
-    final email = _email.text.trim();
-    final password = _password.text;
-    if (email.isEmpty || password.isEmpty) {
-      setState(() => _error = _strings.requiredCredentials);
-      return;
-    }
-    if (_registering && password.length < 8) {
-      setState(() => _error = _strings.passwordTooShort);
-      return;
-    }
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      if (_registering) {
-        await _post(
-            '/api/v1/auth/register',
-            {
-              'email': email,
-              'password': password,
-            },
-            token: null);
-      }
-      final login = await _post(
-          '/api/v1/auth/login',
-          {
-            'email': email,
-            'password': password,
-          },
-          token: null);
-      final token = login['access_token']?.toString();
-      if (token == null || token.isEmpty) throw _strings.missingAccessToken;
-      await AuthSession.saveAccessToken(token);
-      _token = token;
-      try {
-        final profileResponse = await http.get(_base.resolve('/api/v1/auth/me'),
-            headers: _headers());
-        if (profileResponse.statusCode == 200) {
-          final profile = _decode(profileResponse.body);
-          _accountEmail = profile['email']?.toString();
-          _accountName = profile['full_name']?.toString();
-        }
-      } catch (_) {}
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_legacyTokenKey);
-      await _loadConversations();
-      await _loadCreditBalance();
-    } catch (error) {
-      _error = error.toString().replaceFirst('Exception: ', '');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _signOut() async {
-    final token = _token;
-    if (token != null && token.isNotEmpty) {
-      for (final attachment
-          in List<Map<String, dynamic>>.from(_pendingAttachments)) {
-        final id = (attachment['id'] as num?)?.toInt();
-        if (id != null) {
-          try {
-            await http.delete(_base.resolve('/api/v1/files/$id'),
-                headers: _headers(token));
-          } catch (_) {}
-        }
-      }
-    }
-    if (token != null && token.isNotEmpty) {
-      try {
-        await http.post(
-          _base.resolve('/api/v1/auth/logout'),
-          headers: _headers(token),
-        );
-      } catch (_) {
-        // Always clear local state even if the network is unavailable.
-      }
-    }
-    await AuthSession.clearPersisted();
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_legacyTokenKey);
-    } catch (_) {
-      // Secure storage and in-memory session have already been cleared.
-    }
-    setState(() {
-      _token = null;
-      _accountEmail = null;
-      _accountName = null;
-      _conversationId = null;
-      _messages = [];
-      _conversations = [];
-      _pendingAttachments.clear();
-      _creditBalance = 0;
-      _error = null;
-      _password.clear();
-    });
-  }
-
-  Future<void> _showAccountSettings() async {
-    final arabic = Localizations.localeOf(context).languageCode == 'ar';
-    await showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: AppColors.surface,
-      showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.lg),
-          child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(arabic ? 'الإعدادات والحساب' : 'Settings & account',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: AppColors.text, fontWeight: FontWeight.bold)),
-                const SizedBox(height: AppSpacing.md),
-                ListTile(
-                    leading: const Icon(Icons.person_outline),
-                    title: Text((_accountName?.trim().isNotEmpty == true
-                            ? _accountName!
-                            : _accountEmail) ??
-                        (arabic ? 'مستخدم' : 'User')),
-                    subtitle: Text(_accountEmail ??
-                        (arabic ? 'الحساب الحالي' : 'Signed-in account'))),
-                ListTile(
-                    leading: const Icon(Icons.language),
-                    title: Text(arabic ? 'اللغة' : 'Language'),
-                    trailing: SegmentedButton<String>(
-                        segments: const [
-                          ButtonSegment(value: 'ar', label: Text('العربية')),
-                          ButtonSegment(value: 'en', label: Text('English'))
-                        ],
-                        selected: {
-                          Localizations.localeOf(context).languageCode
-                        },
-                        onSelectionChanged: (selected) {
-                          widget.onLocaleChanged?.call(selected.first);
-                          Navigator.pop(sheetContext);
-                        })),
-                ListTile(
-                    leading: const Icon(Icons.info_outline),
-                    title: Text(arabic ? 'الإصدار' : 'Version'),
-                    trailing: const Text('1.1.0+2')),
-                ListTile(
-                    leading: const Icon(Icons.logout, color: AppColors.error),
-                    title: Text(arabic ? 'تسجيل الخروج' : 'Sign out',
-                        style: const TextStyle(color: AppColors.error)),
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      _signOut();
-                    }),
-              ]),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _loadConversations() async {
-    final data = await _get('/api/v1/chat/conversations');
-    final items = (data['data'] as List<dynamic>? ?? const [])
-        .whereType<Map>()
-        .map((item) => Map<String, dynamic>.from(item))
-        .toList();
-    _conversations = items;
-    if (items.isNotEmpty) {
-      _conversationId ??= (items.first['id'] as num).toInt();
-      await _loadMessages(_conversationId!);
-    }
-  }
-
-  Future<void> _loadCreditBalance() async {
-    try {
-      final data = await _get('/api/v1/auth/credits/balance');
-      final value = data['balance'];
-      if (mounted && value is num) {
-        setState(() => _creditBalance = value.toInt());
-      }
-    } catch (_) {
-      // Keep the chat usable when a balance refresh temporarily fails.
-    }
-  }
-
-  Future<void> _showCreditHistory() async {
-    if (_token == null || _busy) return;
-    try {
-      final data = await _get('/api/v1/auth/credits/history?limit=50');
-      final items = (data['data'] as List<dynamic>? ?? const [])
-          .whereType<Map>()
-          .map((item) => Map<String, dynamic>.from(item))
-          .toList(growable: false);
-      if (!mounted) return;
-      await showModalBottomSheet<void>(
-        context: context,
-        backgroundColor: AppColors.surface,
-        builder: (sheetContext) => SafeArea(
-          child: SizedBox(
-            height: MediaQuery.sizeOf(sheetContext).height * 0.65,
-            child: items.isEmpty
-                ? Center(child: Text(_strings.noData))
-                : ListView.separated(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    itemCount: items.length,
-                    separatorBuilder: (_, __) =>
-                        const Divider(color: AppColors.border),
-                    itemBuilder: (_, index) {
-                      final item = items[index];
-                      final amount = (item['amount'] as num?)?.toInt() ?? 0;
-                      final balance =
-                          (item['balance_after'] as num?)?.toInt() ?? 0;
-                      final reason = item['reason']?.toString() ?? '';
-                      final createdAt = item['created_at']?.toString() ?? '';
-                      return ListTile(
-                        leading: Icon(
-                          amount >= 0 ? Icons.add_circle : Icons.remove_circle,
-                          color: amount >= 0
-                              ? AppColors.success
-                              : AppColors.primaryGold,
-                        ),
-                        title: Text(reason),
-                        subtitle: Text(createdAt),
-                        trailing: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              '${amount >= 0 ? '+' : ''}$amount',
-                              style: const TextStyle(
-                                color: AppColors.text,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              _strings.creditBalance(balance),
-                              style: const TextStyle(
-                                color: AppColors.textMuted,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ),
-      );
-    } catch (error) {
-      if (mounted) {
-        setState(
-            () => _error = error.toString().replaceFirst('Exception: ', ''));
-      }
-    }
-  }
-
-  Future<void> _loadMessages(int id) async {
-    final response = await http.get(
-      _base.resolve('/api/v1/chat/conversations/$id/messages'),
-      headers: _headers(),
-    );
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw _friendlyError(response.statusCode, _decode(response.body));
-    }
-    final body = _decode(response.body);
-    _messages = (body['data'] as List<dynamic>? ?? const [])
-        .whereType<Map>()
-        .map((item) => Map<String, dynamic>.from(item))
-        .toList();
-    if (mounted) setState(() {});
-    _scrollToEnd();
-  }
-
-  Future<void> _newConversation() async {
-    if (_token == null) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      await _createConversation();
-    } catch (error) {
-      _error = error.toString().replaceFirst('Exception: ', '');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _createConversation() async {
-    final result = await _post('/api/v1/chat/conversations', {});
-    _conversationId = (result['id'] as num).toInt();
-    _messages = [];
-    _conversations.insert(0, result);
-  }
-
-  Future<void> _renameConversation(int id, String currentTitle) async {
-    final controller = TextEditingController(text: currentTitle);
-    final title = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: Text(Localizations.localeOf(context).languageCode == 'ar'
-            ? 'إعادة تسمية المحادثة'
-            : 'Rename conversation'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: 255,
-          decoration: InputDecoration(
-            hintText: _strings.conversationFallback,
-          ),
-          onSubmitted: (value) => Navigator.pop(dialogContext, value.trim()),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: Text(_strings.cancel),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, controller.text.trim()),
-            child: Text(Localizations.localeOf(context).languageCode == 'ar'
-                ? 'حفظ'
-                : 'Save'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (title == null || title.isEmpty || _token == null) return;
-    try {
-      final response = await http.patch(
-        _base.resolve('/api/v1/chat/conversations/$id/rename'),
-        headers: _headers(),
-        body: jsonEncode({'new_title': title}),
-      );
-      if (response.statusCode == 401) await _invalidateSession();
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw _friendlyError(response.statusCode, _decode(response.body));
-      }
-      await _loadConversations();
-    } catch (error) {
-      if (mounted)
-        setState(
-            () => _error = error.toString().replaceFirst('Exception: ', ''));
-    }
-  }
-
-  Future<void> _deleteConversation(int id) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: Text(Localizations.localeOf(context).languageCode == 'ar'
-            ? 'حذف المحادثة؟'
-            : 'Delete conversation?'),
-        content: Text(Localizations.localeOf(context).languageCode == 'ar'
-            ? 'سيتم حذف الرسائل المرتبطة بها نهائيًا.'
-            : 'All messages in this conversation will be deleted.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(_strings.cancel),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(Localizations.localeOf(context).languageCode == 'ar'
-                ? 'حذف'
-                : 'Delete'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || _token == null) return;
-    try {
-      final response = await http.delete(
-        _base.resolve('/api/v1/chat/conversations/$id'),
-        headers: _headers(),
-      );
-      if (response.statusCode == 401) await _invalidateSession();
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw _friendlyError(response.statusCode, _decode(response.body));
-      }
-      _conversations.removeWhere((item) => (item['id'] as num?)?.toInt() == id);
-      if (_conversationId == id) {
-        _conversationId = null;
-        _messages = [];
-        if (_conversations.isNotEmpty) {
-          _conversationId = (_conversations.first['id'] as num).toInt();
-          await _loadMessages(_conversationId!);
-        }
-      }
-      if (mounted) setState(() {});
-    } catch (error) {
-      if (mounted)
-        setState(
-            () => _error = error.toString().replaceFirst('Exception: ', ''));
-    }
-  }
-
-  MediaType? _mimeForName(String name) {
-    final ext = name.split('.').last.toLowerCase();
-    const types = <String, String>{
-      'png': 'image/png',
-      'jpg': 'image/jpeg',
-      'jpeg': 'image/jpeg',
-      'webp': 'image/webp',
-      'pdf': 'application/pdf',
-      'txt': 'text/plain',
-      'md': 'text/markdown',
-      'csv': 'text/csv',
-      'json': 'application/json',
-    };
-    final value = types[ext];
-    if (value == null) return null;
-    final pieces = value.split('/');
-    return MediaType(pieces[0], pieces[1]);
-  }
-
-  Future<void> _pickAndUploadFile() async {
-    if (_uploading || _busy || _token == null) return;
-    if (_pendingAttachments.length >= 5) {
-      setState(() => _error =
-          Localizations.localeOf(context).languageCode == 'ar'
-              ? 'يمكن إرفاق خمسة ملفات كحد أقصى في الرسالة.'
-              : 'You can attach up to five files per message.');
-      return;
-    }
-    try {
-      final file = await FilePicker.pickFile();
-      if (file == null) return;
-      final mime = _mimeForName(file.name);
-      if (mime == null)
-        throw Localizations.localeOf(context).languageCode == 'ar'
-            ? 'الأنواع المدعومة: الصور وPDF وTXT وMarkdown وCSV وJSON.'
-            : 'Supported: images, PDF, TXT, Markdown, CSV, and JSON.';
-      final bytes = await file.readAsBytes();
-      setState(() {
-        _uploading = true;
-        _error = null;
-      });
-      final request =
-          http.MultipartRequest('POST', _base.resolve('/api/v1/files/upload'));
-      request.headers['Authorization'] = 'Bearer $_token';
-      request.files.add(http.MultipartFile.fromBytes('upload', bytes,
-          filename: file.name, contentType: mime));
-      final streamed = await request.send();
-      final response = await http.Response.fromStream(streamed);
-      final data = _decode(response.body);
-      if (response.statusCode < 200 || response.statusCode >= 300) {
-        throw _friendlyError(response.statusCode, data);
-      }
-      if (mounted)
-        setState(() => _pendingAttachments.add(
-            {'id': data['id'], 'name': data['original_name'] ?? file.name}));
-    } catch (error) {
-      if (mounted)
-        setState(
-            () => _error = error.toString().replaceFirst('Exception: ', ''));
-    } finally {
-      if (mounted) setState(() => _uploading = false);
-    }
-  }
-
-  Future<void> _removePendingAttachment(Map<String, dynamic> attachment) async {
-    final id = (attachment['id'] as num?)?.toInt();
-    if (id != null && _token != null) {
-      try {
-        await http.delete(_base.resolve('/api/v1/files/$id'),
-            headers: _headers());
-      } catch (_) {}
-    }
-    if (mounted) setState(() => _pendingAttachments.remove(attachment));
-  }
-
-  Future<_StreamResult> _streamMessage(
-    int conversationId,
-    String text, {
-    bool regenerate = false,
-    List<int> attachmentIds = const [],
-  }) async {
-    final request = http.Request(
-      'POST',
-      _base.resolve(
-        '/api/v1/chat/stream?conversation_id=$conversationId'
-        '${regenerate ? '&regenerate=true' : ''}',
-      ),
-    );
-    request.headers.addAll(_headers());
-    request.body =
-        jsonEncode({'message': text, 'attachment_ids': attachmentIds});
-    final client = http.Client();
-    _streamClient = client;
-    _stopRequested = false;
-    final response = await client.send(request);
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      final body = _decode(await response.stream.bytesToString());
-      if (response.statusCode == 401) await _invalidateSession();
-      throw _friendlyError(response.statusCode, body);
-    }
-
-    var reply = '';
-    var assistantIndex = -1;
-    int? creditBalance;
-    try {
-      await for (final line in response.stream
-          .transform(utf8.decoder)
-          .transform(const LineSplitter())) {
-        if (!line.startsWith('data:')) continue;
-        final raw = line.substring(5).trim();
-        if (raw.isEmpty) continue;
-        final event = jsonDecode(raw);
-        if (event is! Map<String, dynamic>) continue;
-        final error = event['error']?.toString();
-        if (error != null && error.isNotEmpty) throw error;
-        final delta = event['delta']?.toString() ?? '';
-        if (delta.isNotEmpty) {
-          reply += delta;
-          if (assistantIndex == -1) {
-            assistantIndex = _messages.length;
-            _messages.add({
-              'role': 'assistant',
-              'content': reply,
-              'created_at': DateTime.now().toIso8601String(),
-            });
-          } else {
-            _messages[assistantIndex]['content'] = reply;
-          }
-          if (mounted) setState(() {});
-          _scrollToEnd();
-        }
-        if (event['credit_balance'] is num) {
-          creditBalance = (event['credit_balance'] as num).toInt();
-        }
-      }
-    } catch (error) {
-      if (_stopRequested && reply.isNotEmpty) {
-        return _StreamResult(reply: reply, stopped: true);
-      }
-      if (assistantIndex >= 0 && assistantIndex < _messages.length) {
-        _messages.removeAt(assistantIndex);
-      }
-      throw error;
-    } finally {
-      if (identical(_streamClient, client)) _streamClient = null;
-      client.close();
-    }
-    if (reply.trim().isEmpty) throw _strings.emptyModelReply;
-    return _StreamResult(reply: reply, creditBalance: creditBalance);
-  }
-
-  void _stopStreaming() {
-    if (_streamClient == null) return;
-    _stopRequested = true;
-    _streamClient!.close();
-    if (mounted) setState(() => _error = null);
-  }
-
-  Future<void> _regenerateMessage(int assistantIndex) async {
-    if (_busy || _conversationId == null || assistantIndex <= 0) return;
-    var userIndex = assistantIndex - 1;
-    while (userIndex >= 0 && _messages[userIndex]['role'] != 'user') {
-      userIndex--;
-    }
-    if (userIndex < 0) return;
-    final prompt = _messages[userIndex]['content']?.toString().trim() ?? '';
-    if (prompt.isEmpty) return;
-
-    setState(() {
-      _messages.removeAt(assistantIndex);
-      _busy = true;
-      _error = null;
-    });
-    try {
-      final streamed = await _streamMessage(
-        _conversationId!,
-        prompt,
-        regenerate: true,
-      );
-      if (!streamed.stopped) await _loadConversations();
-      if (streamed.creditBalance != null) {
-        _creditBalance = streamed.creditBalance!;
-      } else if (!streamed.stopped) {
-        await _loadCreditBalance();
-      }
-    } catch (error) {
-      if (mounted) {
-        setState(
-            () => _error = error.toString().replaceFirst('Exception: ', ''));
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-      _scrollToEnd();
-    }
-  }
-
-  Future<void> _copyMessage(String text) async {
-    await Clipboard.setData(ClipboardData(text: text));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(Localizations.localeOf(context).languageCode == 'ar'
-            ? 'تم نسخ الرسالة'
-            : 'Message copied'),
-        duration: const Duration(seconds: 1),
-      ),
-    );
-  }
-
-  Future<void> _sendMessage() async {
-    final enteredText = _message.text.trim();
-    if ((enteredText.isEmpty && _pendingAttachments.isEmpty) ||
-        _busy ||
-        _uploading ||
-        _token == null) return;
-    final text = enteredText.isEmpty
-        ? (Localizations.localeOf(context).languageCode == 'ar'
-            ? 'حلل المرفق من فضلك'
-            : 'Please analyze the attachment.')
-        : enteredText;
-    final attachmentIds =
-        _pendingAttachments.map((item) => (item['id'] as num).toInt()).toList();
-    Map<String, dynamic>? optimisticUserMessage;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      if (_conversationId == null) await _createConversation();
-      final id = _conversationId;
-      if (id == null) throw _strings.conversationCreateFailed;
-      final userMessage = <String, dynamic>{
-        'role': 'user',
-        'content':
-            '$text${_pendingAttachments.isEmpty ? '' : '\n📎 ${_pendingAttachments.map((item) => item['name']).join(', ')}'}',
-        'created_at': DateTime.now().toIso8601String(),
-      };
-      optimisticUserMessage = userMessage;
-      setState(() {
-        _messages.add(userMessage);
-        _message.clear();
-      });
-      _scrollToEnd();
-      final streamed =
-          await _streamMessage(id, text, attachmentIds: attachmentIds);
-      if (!streamed.stopped) {
-        await _loadConversations();
-        for (final attachment
-            in List<Map<String, dynamic>>.from(_pendingAttachments)) {
-          final fileId = (attachment['id'] as num?)?.toInt();
-          if (fileId != null) {
-            try {
-              await http.delete(_base.resolve('/api/v1/files/$fileId'),
-                  headers: _headers());
-            } catch (_) {}
-          }
-        }
-        setState(() => _pendingAttachments.clear());
-      }
-      if (streamed.creditBalance != null) {
-        _creditBalance = streamed.creditBalance!;
+      // Load folders
+      final foldersRaw = prefs.getString('chatgpt_folders');
+      if (foldersRaw != null) {
+        final list = jsonDecode(foldersRaw) as List<dynamic>;
+        _folders = list.map((f) => Folder.fromJson(f as Map<String, dynamic>)).toList();
       } else {
-        await _loadCreditBalance();
+        _folders = [
+          Folder(id: 'folder-1', name: '📱 تطبيقات الموبايل', createdAt: DateTime.now()),
+          Folder(id: 'folder-2', name: '🌐 مشاريع الويب', createdAt: DateTime.now()),
+        ];
       }
-    } catch (error) {
-      if (optimisticUserMessage != null &&
-          _messages.isNotEmpty &&
-          _messages.last == optimisticUserMessage) {
-        _messages.removeLast();
+
+      // Load memories
+      final memoriesRaw = prefs.getString('chatgpt_memories');
+      if (memoriesRaw != null) {
+        final list = jsonDecode(memoriesRaw) as List<dynamic>;
+        _memories = list.map((m) => MemoryItem.fromJson(m as Map<String, dynamic>)).toList();
+      } else {
+        _memories = [
+          MemoryItem(
+            id: 'mem-1',
+            content: 'المستخدم يفضل كتابة التطبيقات باستخدام Flutter للويب والموبايل.',
+            createdAt: DateTime.now(),
+          ),
+          MemoryItem(
+            id: 'mem-2',
+            content: 'لغة التخاطب والشرح المفضلة هي اللغة العربية الفصحى الواضحة.',
+            createdAt: DateTime.now(),
+          ),
+        ];
       }
-      _error = error.toString().replaceFirst('Exception: ', '');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-      _scrollToEnd();
-    }
+
+      // Load conversations
+      final convsRaw = prefs.getString('chatgpt_conversations');
+      if (convsRaw != null) {
+        final list = jsonDecode(convsRaw) as List<dynamic>;
+        _conversations = list.map((c) => Conversation.fromJson(c as Map<String, dynamic>)).toList();
+        if (_conversations.isNotEmpty) {
+          _currentConvId = _conversations.first.id;
+        }
+      }
+    } catch (_) {}
+
+    if (mounted) setState(() {});
   }
 
-  Future<void> _switchConversation() async {
-    if (_conversations.isEmpty) return;
-    var query = '';
-    final selected = await showModalBottomSheet<int>(
-      context: context,
-      backgroundColor: AppColors.surface,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          final visible = _conversations
-              .where((item) => (item['title']?.toString() ?? '')
-                  .toLowerCase()
-                  .contains(query.toLowerCase()))
-              .toList();
-          return SafeArea(
-            child: SizedBox(
-              height: MediaQuery.sizeOf(context).height * 0.72,
-              child: Column(children: [
-                Padding(
-                    padding: const EdgeInsets.all(AppSpacing.md),
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(_strings.chatHistory,
-                              style: Theme.of(context).textTheme.titleLarge),
-                          const SizedBox(height: AppSpacing.sm),
-                          TextField(
-                              decoration: InputDecoration(
-                                  prefixIcon: const Icon(Icons.search),
-                                  hintText: Localizations.localeOf(context)
-                                              .languageCode ==
-                                          'ar'
-                                      ? 'ابحث باسم المحادثة'
-                                      : 'Search conversations',
-                                  filled: true),
-                              onChanged: (value) {
-                                query = value.trim();
-                                setDialogState(() {});
-                              }),
-                        ])),
-                Expanded(
-                    child: visible.isEmpty
-                        ? Center(child: Text(_strings.noData))
-                        : ListView(
-                            children: visible.map((item) {
-                            final id = (item['id'] as num).toInt();
-                            return ListTile(
-                              leading: const Icon(Icons.chat_bubble_outline),
-                              title: Text(
-                                  item['title']?.toString() ??
-                                      _strings.conversationFallback,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis),
-                              selected: _conversationId == id,
-                              trailing: PopupMenuButton<String>(
-                                onSelected: (action) {
-                                  if (action == 'rename')
-                                    _renameConversation(
-                                        id,
-                                        item['title']?.toString() ??
-                                            _strings.conversationFallback);
-                                  if (action == 'delete')
-                                    _deleteConversation(id);
-                                },
-                                itemBuilder: (_) => [
-                                  PopupMenuItem(
-                                      value: 'rename',
-                                      child: Text(
-                                          Localizations.localeOf(context)
-                                                      .languageCode ==
-                                                  'ar'
-                                              ? 'إعادة تسمية'
-                                              : 'Rename')),
-                                  PopupMenuItem(
-                                      value: 'delete',
-                                      child: Text(
-                                          Localizations.localeOf(context)
-                                                      .languageCode ==
-                                                  'ar'
-                                              ? 'حذف'
-                                              : 'Delete')),
-                                ],
-                              ),
-                              onTap: () => Navigator.pop(sheetContext, id),
-                            );
-                          }).toList())),
-              ]),
-            ),
-          );
-        },
+  Future<void> _saveToStorage() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('chatgpt_dark_theme', _isDarkTheme);
+      await prefs.setBool('chatgpt_memory_enabled', _memoryEnabled);
+      await prefs.setString('chatgpt_model', _selectedModel);
+      await prefs.setString(
+          'chatgpt_folders', jsonEncode(_folders.map((f) => f.toJson()).toList()));
+      await prefs.setString(
+          'chatgpt_memories', jsonEncode(_memories.map((m) => m.toJson()).toList()));
+
+      if (!_isTemporary) {
+        await prefs.setString('chatgpt_conversations',
+            jsonEncode(_conversations.map((c) => c.toJson()).toList()));
+      }
+    } catch (_) {}
+  }
+
+  Conversation? get _currentConversation {
+    if (_currentConvId == null) return null;
+    return _conversations.firstWhere(
+      (c) => c.id == _currentConvId,
+      orElse: () => Conversation(
+        id: 'new',
+        title: 'New Chat',
+        createdAt: DateTime.now(),
       ),
     );
-    if (selected == null) return;
+  }
+
+  void _handleNewChat() {
     setState(() {
-      _busy = true;
-      _conversationId = selected;
-      _error = null;
+      _currentConvId = null;
+      _attachments.clear();
+      _canvas.isOpen = false;
     });
+  }
+
+  void _handleSelectConv(String id) {
+    setState(() {
+      _currentConvId = id;
+      _attachments.clear();
+    });
+  }
+
+  void _handleDeleteConv(String id) {
+    setState(() {
+      _conversations.removeWhere((c) => c.id == id);
+      if (_currentConvId == id) {
+        _currentConvId = _conversations.isNotEmpty ? _conversations.first.id : null;
+      }
+    });
+    _saveToStorage();
+  }
+
+  void _handleRenameConv(String id, String newTitle) {
+    setState(() {
+      final idx = _conversations.indexWhere((c) => c.id == id);
+      if (idx != -1) {
+        _conversations[idx].title = newTitle;
+        _conversations[idx].updatedAt = DateTime.now();
+      }
+    });
+    _saveToStorage();
+  }
+
+  void _handlePinConv(String id) {
+    setState(() {
+      final idx = _conversations.indexWhere((c) => c.id == id);
+      if (idx != -1) {
+        _conversations[idx].isPinned = !_conversations[idx].isPinned;
+        _conversations[idx].updatedAt = DateTime.now();
+      }
+    });
+    _saveToStorage();
+  }
+
+  void _handleCreateFolder(String name) {
+    final folder = Folder(
+      id: 'folder-${DateTime.now().millisecondsSinceEpoch}',
+      name: name,
+      createdAt: DateTime.now(),
+    );
+    setState(() => _folders.add(folder));
+    _saveToStorage();
+  }
+
+  void _handleDeleteFolder(String id) {
+    setState(() {
+      _folders.removeWhere((f) => f.id == id);
+      for (final c in _conversations) {
+        if (c.folderId == id) c.folderId = null;
+      }
+    });
+    _saveToStorage();
+  }
+
+  void _handleMoveToFolder(String convId, String? folderId) {
+    setState(() {
+      final idx = _conversations.indexWhere((c) => c.id == convId);
+      if (idx != -1) {
+        _conversations[idx].folderId = folderId;
+      }
+    });
+    _saveToStorage();
+  }
+
+  Future<void> _handlePickFile() async {
     try {
-      await _loadMessages(selected);
-    } catch (error) {
-      _error = error.toString().replaceFirst('Exception: ', '');
-    } finally {
-      if (mounted) setState(() => _busy = false);
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: false,
+        withData: true,
+      );
+      if (result != null && result.files.isNotEmpty) {
+        final f = result.files.first;
+        String? textContent;
+        if (f.bytes != null && (f.extension == 'csv' || f.extension == 'txt' || f.extension == 'dart' || f.extension == 'json')) {
+          textContent = utf8.decode(f.bytes!, allowMalformed: true);
+        }
+
+        final att = AttachmentItem(
+          id: 'att-${DateTime.now().millisecondsSinceEpoch}',
+          name: f.name,
+          mimeType: f.extension == 'csv' ? 'text/csv' : 'application/octet-stream',
+          data: textContent ?? (f.bytes != null ? base64Encode(f.bytes!) : ''),
+          size: f.size,
+          type: (f.extension == 'png' || f.extension == 'jpg' || f.extension == 'jpeg') ? 'image' : 'file',
+          textContent: textContent,
+        );
+
+        setState(() => _attachments.add(att));
+      }
+    } catch (_) {}
+  }
+
+  void _openFileInspector(AttachmentItem att) {
+    showDialog(
+      context: context,
+      builder: (ctx) => FileInspectorDialog(
+        attachment: att,
+        onAskPrompt: (prompt) => _handleSendMessage(prompt, attachments: [att]),
+        isRtl: _isRtl,
+      ),
+    );
+  }
+
+  void _openMemorySettings() {
+    showDialog(
+      context: context,
+      builder: (ctx) => MemorySettingsDialog(
+        memories: _memories,
+        memoryEnabled: _memoryEnabled,
+        onToggleMemory: (val) {
+          setState(() => _memoryEnabled = val);
+          _saveToStorage();
+        },
+        onAddMemory: (text) {
+          final item = MemoryItem(
+            id: 'mem-${DateTime.now().millisecondsSinceEpoch}',
+            content: text,
+            createdAt: DateTime.now(),
+          );
+          setState(() => _memories.add(item));
+          _saveToStorage();
+        },
+        onDeleteMemory: (id) {
+          setState(() => _memories.removeWhere((m) => m.id == id));
+          _saveToStorage();
+        },
+        onClearAll: () {
+          setState(() => _memories.clear());
+          _saveToStorage();
+        },
+        isRtl: _isRtl,
+      ),
+    );
+  }
+
+  void _openVoiceMode() {
+    showDialog(
+      context: context,
+      builder: (ctx) => VoiceModeDialog(
+        onClose: () => Navigator.of(ctx).pop(),
+        isRtl: _isRtl,
+      ),
+    );
+  }
+
+  void _openCanvas({
+    String? title,
+    String? content,
+    String language = 'dart',
+    String type = 'code',
+  }) {
+    setState(() {
+      _canvas.isOpen = true;
+      _canvas.title = title ?? 'code_snippet.dart';
+      _canvas.content = content ?? _canvas.content;
+      _canvas.language = language;
+      _canvas.type = type;
+    });
+  }
+
+  Future<void> _handleSendMessage(
+    String text, {
+    List<AttachmentItem>? attachments,
+    bool webSearch = false,
+    bool reasoning = false,
+  }) async {
+    if (text.trim().isEmpty && (attachments == null || attachments.isEmpty)) return;
+    if (_isGenerating) return;
+
+    final userAttachments = attachments ?? List<AttachmentItem>.from(_attachments);
+    final userMsg = Message(
+      id: 'msg-${DateTime.now().millisecondsSinceEpoch}',
+      text: text,
+      isUser: true,
+      timestamp: DateTime.now(),
+      conversationId: _currentConvId ?? '',
+      attachments: userAttachments.isNotEmpty ? userAttachments : null,
+    );
+
+    Conversation targetConv;
+    if (_currentConvId == null || _currentConversation == null) {
+      final title = text.isNotEmpty
+          ? (text.length > 28 ? '${text.substring(0, 28)}...' : text)
+          : (_isRtl ? 'محادثة جديدة' : 'New chat');
+
+      targetConv = Conversation(
+        id: 'conv-${DateTime.now().millisecondsSinceEpoch}',
+        title: title,
+        createdAt: DateTime.now(),
+        messages: [userMsg],
+        model: _selectedModel,
+      );
+
+      if (!_isTemporary) {
+        setState(() {
+          _conversations.insert(0, targetConv);
+          _currentConvId = targetConv.id;
+        });
+      }
+    } else {
+      targetConv = _currentConversation!;
+      setState(() {
+        targetConv.addMessage(userMsg);
+      });
+    }
+
+    _message.clear();
+    setState(() {
+      _attachments.clear();
+      _isGenerating = true;
+    });
+
+    _scrollToBottom();
+
+    // Prepare Placeholder Assistant Message
+    final assistantMsgId = 'msg-${DateTime.now().millisecondsSinceEpoch + 1}';
+    final isO1Model = _selectedModel.startsWith('o1') || reasoning || _isReasoning;
+
+    // Simulate / Generate Assistant Response
+    await Future.delayed(const Duration(milliseconds: 600));
+
+    String reply = '';
+    String? thought;
+
+    if (isO1Model) {
+      thought = '1. تحليل سؤال المستخدم وتحديد السياق المطلوب بدقة.\n2. استحضار تفضيلات الذاكرة وقواعد بنية Flutter و Dart.\n3. صياغة الإجابة بأعلى درجات الدقة والترتيب المنطقي.';
+    }
+
+    if (text.toLowerCase().contains('/canvas') || text.toLowerCase().contains('canvas')) {
+      reply = '''بالتأكيد! تم فتح مساحة العمل **Canvas** لتعديل الكود والمستندات بدقة عالية جنبًا إلى جنب مع المحادثة.
+
+يمكنك استخدام أزرار الذكاء الاصطناعي السريعة في أسفل الـ Canvas:
+- ✨ **تحسين (Polish)**
+- 📏 **تقصير (Shorten)**
+- 📖 **توسيع (Lengthen)**
+- 🐛 **فحص وتصليح الأخطاء (Fix Bugs)**
+- 💬 **إضافة تعليقات (Add Comments)**
+
+إليك نموذج الكود التفاعلي:
+```dart
+import 'package:flutter/material.dart';
+
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        appBar: AppBar(title: const Text('ChatGPT Canvas')),
+        body: const Center(child: Text('Hello from Canvas!')),
+      ),
+    );
+  }
+}
+```''';
+      _openCanvas(
+        title: 'canvas_app.dart',
+        content: '''import 'package:flutter/material.dart';
+
+void main() => runApp(const MyApp());
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: Scaffold(
+        appBar: AppBar(title: const Text('ChatGPT Canvas')),
+        body: const Center(child: Text('Hello from Canvas!')),
+      ),
+    );
+  }
+}''',
+        language: 'dart',
+      );
+    } else if (text.toLowerCase().contains('/image')) {
+      reply = '🎨 جاري توليد وتصميم الصورة بناءً على وصفك الدقيق بالذكاء الاصطناعي... تم إنشاء المعاينة بنجاح!';
+    } else if (text.toLowerCase().contains('csv') || userAttachments.any((a) => a.mimeType.contains('csv'))) {
+      reply = '''تم استلام ملف البيانات وفحصه بنجاح! 📊
+
+يمكنك النقر مباشرة على بطاقة الملف في أي وقت لفتح **مفتش الجداول التفاعلي (CSV Inspector)** والبحث داخل الصفوف وتصفحها بسلاسة.
+
+### الملخص التحليلي:
+- تم استخراج الأعمدة الرئيسية بنجاح.
+- البيانات متناسقة وجاهزة للتصور البياني وإنشاء الرسوم الإحصائية.''';
+    } else {
+      reply = '''أهلاً بك! أنا مساعدك الذكي المتطور بنموذج **$_selectedModel**.
+
+جاهز لمساعدتك في بناء تطبيقات الموبايل والويب باستخدام Flutter، كتابة ومراجعة الأكواد البرمجية، وتحليل البيانات والمستندات.
+
+يمكنك في أي وقت:
+1. كتابة `/` لفتح قائمة الأوامر الفورية (Slash Commands).
+2. فتح مساحة العمل **Canvas** لتعديل المستندات جنبًا إلى جنب.
+3. إدارة سجل ذكرياتك عبر تبويب الذاكرة في القائمة الجانبية.
+
+كيف يمكنني مساعدتك الآن؟''';
+    }
+
+    final assistantMsg = Message(
+      id: assistantMsgId,
+      text: reply,
+      isUser: false,
+      timestamp: DateTime.now(),
+      conversationId: targetConv.id,
+      thoughts: thought,
+      modelUsed: _selectedModel,
+    );
+
+    if (mounted) {
+      setState(() {
+        targetConv.addMessage(assistantMsg);
+        _isGenerating = false;
+      });
+      _saveToStorage();
+      _scrollToBottom();
     }
   }
 
-  void _scrollToEnd() {
+  void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scroll.hasClients) {
         _scroll.animateTo(
@@ -986,468 +525,572 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
     });
   }
 
-  Future<void> _toggleSpeech() async {
-    if (_listening) {
-      await _speech.stop();
-      if (mounted) setState(() => _listening = false);
-      return;
-    }
-    try {
-      _speechAvailable = await _speech.initialize(
-        onStatus: (status) {
-          if (mounted) setState(() => _listening = status == 'listening');
-        },
-        onError: (error) {
-          if (mounted)
-            setState(() {
-              _listening = false;
-              _error = _strings.microphoneError(error.errorMsg);
-            });
-        },
-      );
-      if (!_speechAvailable) {
-        setState(() => _error = _strings.speechUnavailable);
-        return;
-      }
-      setState(() => _error = null);
-      await _speech.listen(
-        listenOptions: stt.SpeechListenOptions(
-          localeId: 'ar_SA',
-          listenMode: stt.ListenMode.dictation,
-        ),
-        onResult: (result) {
-          setState(() {
-            _message.value = TextEditingValue(
-              text: result.recognizedWords,
-              selection: TextSelection.collapsed(
-                  offset: result.recognizedWords.length),
-            );
-          });
-        },
-      );
-    } catch (_) {
-      if (mounted) setState(() => _error = _strings.microphonePermissionDenied);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    if (!_ready) {
-      return Center(
-        child: CircularProgressIndicator(
-          color: AppColors.primaryGold,
-          semanticsLabel: _strings.loading,
-        ),
-      );
-    }
-    if (_token == null) return _buildAuth();
-    return _buildChat();
-  }
+    final isDark = _isDarkTheme;
+    final bg = isDark ? AppColors.darkBackground : AppColors.lightBackground;
+    final textColor = isDark ? AppColors.darkText : AppColors.lightText;
+    final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
-  Widget _buildAuth() {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 460),
-          child: Card(
-            color: AppColors.surface,
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.xl),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
+    return Directionality(
+      textDirection: _isRtl ? TextDirection.rtl : TextDirection.ltr,
+      child: Theme(
+        data: isDark ? ThemeData.dark() : ThemeData.light(),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= 768;
+
+            return Scaffold(
+              backgroundColor: bg,
+              drawer: isWide
+                  ? null
+                  : ChatDrawer(
+                      conversations: _conversations,
+                      currentConvId: _currentConvId,
+                      folders: _folders,
+                      onSelectConv: (id) {
+                        Navigator.of(context).pop();
+                        _handleSelectConv(id);
+                      },
+                      onNewChat: () {
+                        Navigator.of(context).pop();
+                        _handleNewChat();
+                      },
+                      onDeleteConv: _handleDeleteConv,
+                      onRenameConv: _handleRenameConv,
+                      onPinConv: _handlePinConv,
+                      onCreateFolder: _handleCreateFolder,
+                      onDeleteFolder: _handleDeleteFolder,
+                      onMoveToFolder: _handleMoveToFolder,
+                      onOpenMemory: () {
+                        Navigator.of(context).pop();
+                        _openMemorySettings();
+                      },
+                      onToggleTheme: () {
+                        setState(() => _isDarkTheme = !_isDarkTheme);
+                        _saveToStorage();
+                      },
+                      isDarkTheme: _isDarkTheme,
+                      isRtl: _isRtl,
+                    ),
+              body: Row(
                 children: [
-                  const SulyBrandMark(size: 58),
-                  const SizedBox(height: AppSpacing.md),
-                  Text(
-                    _registering ? _strings.registerTitle : _strings.loginTitle,
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: AppColors.text,
-                          fontWeight: FontWeight.bold,
+                  // Desktop/Web Left Sidebar
+                  if (isWide)
+                    ChatDrawer(
+                      conversations: _conversations,
+                      currentConvId: _currentConvId,
+                      folders: _folders,
+                      onSelectConv: _handleSelectConv,
+                      onNewChat: _handleNewChat,
+                      onDeleteConv: _handleDeleteConv,
+                      onRenameConv: _handleRenameConv,
+                      onPinConv: _handlePinConv,
+                      onCreateFolder: _handleCreateFolder,
+                      onDeleteFolder: _handleDeleteFolder,
+                      onMoveToFolder: _handleMoveToFolder,
+                      onOpenMemory: _openMemorySettings,
+                      onToggleTheme: () {
+                        setState(() => _isDarkTheme = !_isDarkTheme);
+                        _saveToStorage();
+                      },
+                      isDarkTheme: _isDarkTheme,
+                      isRtl: _isRtl,
+                    ),
+
+                  // Central Workspace (Chat Area)
+                  Expanded(
+                    flex: 6,
+                    child: Column(
+                      children: [
+                        // Top Header Bar
+                        _buildTopBar(isWide, border, textColor),
+
+                        // Message List Viewport
+                        Expanded(
+                          child: _currentConversation == null ||
+                                  _currentConversation!.messages.isEmpty
+                              ? _buildEmptyState(textColor, isDark)
+                              : ListView.builder(
+                                  controller: _scroll,
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 12),
+                                  itemCount: _currentConversation!.messages.length,
+                                  itemBuilder: (context, idx) {
+                                    final msg = _currentConversation!.messages[idx];
+                                    return _buildMessageRow(msg, isDark, border);
+                                  },
+                                ),
                         ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  TextField(
-                    controller: _email,
-                    keyboardType: TextInputType.emailAddress,
-                    textDirection: TextDirection.ltr,
-                    decoration: InputDecoration(
-                      labelText: _strings.email,
-                      prefixIcon: const Icon(Icons.email_outlined),
+
+                        // Floating Input Bar
+                        _buildInputCapsule(isDark, border, textColor),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: AppSpacing.md),
-                  TextField(
-                    controller: _password,
-                    obscureText: true,
-                    onSubmitted: (_) => _authenticate(),
-                    decoration: InputDecoration(
-                      labelText: _strings.password,
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      helperText: _strings.minimumPassword,
+
+                  // Side-by-Side Canvas Panel (Desktop/Web)
+                  if (isWide && _canvas.isOpen)
+                    Expanded(
+                      flex: 5,
+                      child: CanvasPanel(
+                        canvas: _canvas,
+                        onClose: () => setState(() => _canvas.isOpen = false),
+                        onUpdateContent: (val) => _canvas.content = val,
+                        onAskAi: (prompt) {
+                          _handleSendMessage(
+                            '$prompt\n\n```${_canvas.language}\n${_canvas.content}\n```',
+                          );
+                        },
+                        isRtl: _isRtl,
+                      ),
                     ),
-                  ),
-                  if (_error != null) _errorBox(_error!),
-                  const SizedBox(height: AppSpacing.md),
-                  FilledButton.icon(
-                    onPressed: _busy ? null : _authenticate,
-                    icon: _busy
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.login),
-                    label: Text(_registering
-                        ? _strings.createAccountAndChat
-                        : _strings.signIn),
-                  ),
-                  TextButton(
-                    onPressed: _busy
-                        ? null
-                        : () => setState(() {
-                              _registering = !_registering;
-                              _error = null;
-                            }),
-                    child: Text(_registering
-                        ? _strings.loginPrompt
-                        : _strings.registerPrompt),
-                  ),
                 ],
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _buildChat() {
-    return Column(
-      children: [
-        Container(
-          color: AppColors.surface,
-          padding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm, vertical: 4),
-          child: Row(
-            children: [
-              IconButton(
-                tooltip: _strings.chatHistory,
-                onPressed: _conversations.isEmpty ? null : _switchConversation,
-                icon: const Icon(Icons.history),
+  Widget _buildTopBar(bool isWide, Color border, Color textColor) {
+    return Container(
+      height: 54,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: border)),
+      ),
+      child: Row(
+        children: [
+          if (!isWide)
+            Builder(
+              builder: (ctx) => IconButton(
+                icon: const Icon(Icons.menu),
+                onPressed: () => Scaffold.of(ctx).openDrawer(),
               ),
-              IconButton(
-                tooltip: _strings.newConversation,
-                onPressed: _busy ? null : _newConversation,
-                icon: const Icon(Icons.add_comment_outlined),
-              ),
-              PopupMenuButton<String>(
-                tooltip: Localizations.localeOf(context).languageCode == 'ar'
-                    ? 'المزيد'
-                    : 'More',
-                icon: const Icon(Icons.more_vert),
-                onSelected: (value) {
-                  if (value == 'settings') _showAccountSettings();
-                  if (value == 'history') _switchConversation();
-                  if (value == 'logout') _signOut();
-                },
-                itemBuilder: (_) => [
-                  PopupMenuItem(
-                      value: 'history', child: Text(_strings.chatHistory)),
-                  PopupMenuItem(
-                      value: 'settings',
-                      child: Text(
-                          Localizations.localeOf(context).languageCode == 'ar'
-                              ? 'الإعدادات والحساب'
-                              : 'Settings & account')),
-                  PopupMenuItem(value: 'logout', child: Text(_strings.signOut)),
-                ],
-              ),
-              const Spacer(),
-              Flexible(
-                  child: Text(
-                      (_conversations
-                                  .where((item) =>
-                                      (item['id'] as num?)?.toInt() ==
-                                      _conversationId)
-                                  .isNotEmpty
-                              ? _conversations
-                                  .firstWhere((item) =>
-                                      (item['id'] as num?)?.toInt() ==
-                                      _conversationId)['title']
-                                  ?.toString()
-                              : null) ??
-                          _strings.conversationLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: AppColors.textMuted,
-                          fontWeight: FontWeight.w600))),
-              InkWell(
-                onTap: _showCreditHistory,
-                borderRadius: BorderRadius.circular(18),
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.background,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.bolt,
-                          size: 16, color: AppColors.primaryGold),
-                      const SizedBox(width: 3),
-                      Text('$_creditBalance',
-                          style: const TextStyle(
-                              color: AppColors.text,
-                              fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (_error != null) _errorBox(_error!),
-        Expanded(
-          child: _messages.isEmpty
-              ? _emptyChat()
-              : ListView.builder(
-                  controller: _scroll,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: AppSpacing.lg,
-                  ),
-                  itemCount: _messages.length + (_busy ? 1 : 0),
-                  itemBuilder: (context, index) {
-                    if (_busy && index == _messages.length) {
-                      return const Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        child: Padding(
-                          padding: EdgeInsets.all(12),
-                          child: SizedBox.square(
-                            dimension: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+
+          // Model Selector Pill
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+            decoration: BoxDecoration(
+              color: _isDarkTheme ? const Color(0xFF2F2F2F) : const Color(0xFFF4F4F4),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedModel,
+                icon: const Icon(Icons.keyboard_arrow_down, size: 16),
+                dropdownColor: _isDarkTheme ? const Color(0xFF262626) : Colors.white,
+                items: _availableModels.map((m) {
+                  return DropdownMenuItem<String>(
+                    value: m['id'],
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          m['name']!,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: textColor,
                           ),
                         ),
-                      );
-                    }
-                    final message = _messages[index];
-                    final isUser = message['role'] == 'user';
-                    return Align(
-                      alignment: isUser
-                          ? AlignmentDirectional.centerEnd
-                          : AlignmentDirectional.centerStart,
-                      child: Container(
-                        constraints: const BoxConstraints(maxWidth: 760),
-                        margin: const EdgeInsets.only(bottom: AppSpacing.md),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.md,
-                          vertical: AppSpacing.sm,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isUser
-                              ? AppColors.surfaceSecondary
-                              : AppColors.surface,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            MarkdownMessage(
-                              text: message['content']?.toString() ?? '',
-                              isRtl: _textDirection(
-                                      message['content']?.toString() ?? '') ==
-                                  TextDirection.rtl,
-                              onCopy: (value) {
-                                _copyMessage(value);
-                              },
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryGold.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            m['tag']!,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primaryGold,
                             ),
-                            if (!isUser &&
-                                (message['content']?.toString().isNotEmpty ??
-                                    false))
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    visualDensity: VisualDensity.compact,
-                                    tooltip: Localizations.localeOf(context)
-                                                .languageCode ==
-                                            'ar'
-                                        ? 'نسخ'
-                                        : 'Copy',
-                                    onPressed: _busy
-                                        ? null
-                                        : () => _copyMessage(
-                                            message['content']!.toString()),
-                                    icon: const Icon(Icons.copy_outlined,
-                                        size: 17),
-                                  ),
-                                  IconButton(
-                                    visualDensity: VisualDensity.compact,
-                                    tooltip: Localizations.localeOf(context)
-                                                .languageCode ==
-                                            'ar'
-                                        ? 'إعادة التوليد'
-                                        : 'Regenerate',
-                                    onPressed: _busy
-                                        ? null
-                                        : () => _regenerateMessage(index),
-                                    icon: const Icon(Icons.refresh, size: 18),
-                                  ),
-                                ],
-                              ),
-                          ],
+                          ),
                         ),
-                      ),
-                    );
-                  },
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  if (val != null) {
+                    setState(() => _selectedModel = val);
+                    _saveToStorage();
+                  }
+                },
+              ),
+            ),
+          ),
+
+          const Spacer(),
+
+          // Temporary Chat Toggle
+          IconButton(
+            tooltip: _isRtl ? 'محادثة مؤقتة' : 'Temporary Chat',
+            icon: Icon(
+              _isTemporary ? Icons.history_toggle_off : Icons.history,
+              color: _isTemporary ? AppColors.primaryGold : null,
+              size: 20,
+            ),
+            onPressed: () {
+              setState(() => _isTemporary = !_isTemporary);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    _isTemporary
+                        ? (_isRtl ? 'تم تفعيل الوضع المؤقت' : 'Temporary mode enabled')
+                        : (_isRtl ? 'تم تعطيل الوضع المؤقت' : 'Temporary mode disabled'),
+                  ),
+                  duration: const Duration(seconds: 1),
                 ),
-        ),
-        _composer(),
-      ],
+              );
+            },
+          ),
+
+          // Canvas Toggle Button
+          IconButton(
+            tooltip: _isRtl ? 'مساحة العمل Canvas' : 'Canvas Workspace',
+            icon: Icon(
+              Icons.splitscreen,
+              color: _canvas.isOpen ? AppColors.primaryGold : null,
+              size: 20,
+            ),
+            onPressed: () => setState(() => _canvas.isOpen = !_canvas.isOpen),
+          ),
+
+          // Voice Mode Button
+          IconButton(
+            tooltip: _isRtl ? 'الوضع الصوتي' : 'Voice Mode',
+            icon: const Icon(Icons.mic, color: AppColors.primaryGold, size: 20),
+            onPressed: _openVoiceMode,
+          ),
+        ],
+      ),
     );
   }
 
-  TextDirection _textDirection(String text) {
-    final hasArabic = RegExp(r'[\u0600-\u06FF]').hasMatch(text);
-    return hasArabic ? TextDirection.rtl : TextDirection.ltr;
-  }
-
-  Widget _emptyChat() {
+  Widget _buildEmptyState(Color textColor, bool isDark) {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const SulyBrandMark(size: 72),
-            const SizedBox(height: AppSpacing.md),
-            Text(_strings.emptyChatTitle,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: AppColors.text,
-                      fontWeight: FontWeight.w700,
-                    ),
-                textAlign: TextAlign.center),
-            const SizedBox(height: AppSpacing.sm),
-            Text(_strings.emptyChatBody,
-                style: const TextStyle(color: AppColors.textMuted),
-                textAlign: TextAlign.center),
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF3F3F3),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF383838) : const Color(0xFFE5E5E5),
+                ),
+              ),
+              child: const Icon(Icons.auto_awesome, color: AppColors.primaryGold, size: 28),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _isRtl ? 'بماذا يمكنني مساعدتك اليوم؟' : 'What can I help with today?',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+
+            // Starter prompt chips
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                _buildStarterCard('📱 بناء شاشة Flutter لموبايل وويب', () {
+                  _handleSendMessage('اكتب كود Flutter لشاشة دردشة سريعة ومتجاوبة مع الموبايل والويب.');
+                }),
+                _buildStarterCard('🎨 فتح مساحة العمل Canvas لتطوير كود', () {
+                  _handleSendMessage('/canvas ساعدني في كتابة تطبيق مصغر.');
+                }),
+                _buildStarterCard('📊 استيراد وفحص ملف CSV وتحليله', () {
+                  _handleSendMessage('كيف يمكنني استخدام مفتش الـ CSV لاستخراج إحصائيات دقيقة؟');
+                }),
+                _buildStarterCard('🧠 تفعيل التفكير المنطقي o1 لحل مسألة', () {
+                  _handleSendMessage('/reason حلل معمارية تطبيق فلاتر بمقاييس الأمان الحديثة.');
+                }),
+              ],
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _composer() {
-    return Container(
-      color: AppColors.surface,
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.md,
-        AppSpacing.sm,
-        AppSpacing.md,
-        AppSpacing.md,
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          if (_pendingAttachments.isNotEmpty)
-            SizedBox(
-                height: 42,
-                child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: _pendingAttachments
-                        .map((item) => Padding(
-                              padding: const EdgeInsetsDirectional.only(end: 6),
-                              child: InputChip(
-                                  avatar:
-                                      const Icon(Icons.attach_file, size: 16),
-                                  label: Text(item['name'].toString(),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis),
-                                  onDeleted: () =>
-                                      _removePendingAttachment(item)),
-                            ))
-                        .toList())),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              IconButton.filledTonal(
-                  onPressed: (_busy || _uploading) ? null : _pickAndUploadFile,
-                  tooltip: Localizations.localeOf(context).languageCode == 'ar'
-                      ? 'إرفاق ملف أو صورة'
-                      : 'Attach file or image',
-                  icon: _uploading
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Icon(Icons.attach_file)),
-              IconButton.filledTonal(
-                onPressed: _busy ? null : _toggleSpeech,
-                tooltip: _listening
-                    ? _strings.stopListening
-                    : _strings.dictateArabic,
-                icon: Icon(
-                    _listening ? Icons.stop_circle_outlined : Icons.mic_none),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: TextField(
-                  controller: _message,
-                  minLines: 1,
-                  maxLines: 5,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => _sendMessage(),
-                  enabled: !_busy,
-                  decoration: InputDecoration(
-                    hintText:
-                        _listening ? _strings.listening : _strings.composerHint,
-                    filled: true,
-                    fillColor: AppColors.inputFill,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: AppSpacing.sm,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      borderSide: const BorderSide(color: AppColors.border),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(18),
-                      borderSide: const BorderSide(color: AppColors.border),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              IconButton.filled(
-                onPressed: _busy ? _stopStreaming : _sendMessage,
-                tooltip: _busy ? 'إيقاف التوليد' : _strings.send,
-                icon: Icon(_busy ? Icons.stop_rounded : Icons.send),
-              ),
-            ],
-          ),
-        ]),
+  Widget _buildStarterCard(String title, VoidCallback onTap) {
+    final isDark = _isDarkTheme;
+    final cardBg = isDark ? const Color(0xFF242424) : Colors.white;
+    final cardBorder = isDark ? const Color(0xFF333333) : const Color(0xFFE5E5E5);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 280),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: cardBg,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: cardBorder),
+        ),
+        child: Text(
+          title,
+          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500),
+          textAlign: TextAlign.center,
+        ),
       ),
     );
   }
 
-  Widget _errorBox(String message) => Container(
-        width: double.infinity,
-        margin: const EdgeInsets.all(AppSpacing.md),
-        padding: const EdgeInsets.all(AppSpacing.md),
-        decoration: BoxDecoration(
-          color: AppColors.error.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.error.withValues(alpha: 0.45)),
-        ),
-        child: Text(message, style: const TextStyle(color: AppColors.error)),
-      );
+  Widget _buildMessageRow(Message msg, bool isDark, Color border) {
+    final isUser = msg.isUser;
+    final bubbleBg = isUser
+        ? (isDark ? const Color(0xFF2F2F2F) : const Color(0xFFF4F4F4))
+        : Colors.transparent;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        children: [
+          if (!isUser) ...[
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: isDark ? const Color(0xFF262626) : const Color(0xFFEFEFEF),
+                border: Border.all(color: border),
+              ),
+              child: const Icon(Icons.auto_awesome, size: 16, color: AppColors.primaryGold),
+            ),
+            const SizedBox(width: 10),
+          ],
+
+          Flexible(
+            child: Container(
+              padding: isUser
+                  ? const EdgeInsets.symmetric(horizontal: 16, vertical: 10)
+                  : EdgeInsets.zero,
+              decoration: isUser
+                  ? BoxDecoration(
+                      color: bubbleBg,
+                      borderRadius: BorderRadius.circular(18),
+                    )
+                  : null,
+              child: Column(
+                crossAxisAlignment:
+                    isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                children: [
+                  // Attachments chips if any
+                  if (msg.attachments != null && msg.attachments!.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: msg.attachments!.map((att) {
+                          return ActionChip(
+                            avatar: Icon(
+                              att.mimeType.contains('csv') ? Icons.table_chart : Icons.insert_drive_file,
+                              size: 14,
+                              color: AppColors.primaryGold,
+                            ),
+                            label: Text(
+                              att.name,
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                            onPressed: () => _openFileInspector(att),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+
+                  // Message Markdown Content
+                  MarkdownMessage(
+                    text: msg.text,
+                    isRtl: _isRtl,
+                    thoughts: msg.thoughts,
+                    onOpenCanvas: (code, lang) {
+                      _openCanvas(
+                        title: 'extracted_code.$lang',
+                        content: code,
+                        language: lang,
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          if (isUser) const SizedBox(width: 4),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputCapsule(bool isDark, Color border, Color textColor) {
+    final inputBg = isDark ? const Color(0xFF2F2F2F) : const Color(0xFFF4F4F4);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Slash Commands Popup
+          if (_message.text.startsWith('/'))
+            SlashCommandsMenu(
+              filter: _message.text,
+              onSelect: (cmd) {
+                if (cmd.cmd == '/canvas') {
+                  _message.clear();
+                  _openCanvas();
+                } else {
+                  setState(() {
+                    _message.text = '${cmd.cmd} ';
+                    _message.selection = TextSelection.fromPosition(
+                        TextPosition(offset: _message.text.length));
+                  });
+                }
+              },
+              isRtl: _isRtl,
+            ),
+
+          // Pending Attachments Chips
+          if (_attachments.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.only(bottom: 8),
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: 6,
+                children: _attachments.map((att) {
+                  return InputChip(
+                    avatar: Icon(
+                      att.mimeType.contains('csv') ? Icons.table_chart : Icons.attach_file,
+                      size: 14,
+                      color: AppColors.primaryGold,
+                    ),
+                    label: Text(att.name, style: const TextStyle(fontSize: 11)),
+                    onPressed: () => _openFileInspector(att),
+                    onDeleted: () => setState(() => _attachments.remove(att)),
+                  );
+                }).toList(),
+              ),
+            ),
+
+          // Capsule Container
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: inputBg,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: border),
+            ),
+            child: Row(
+              children: [
+                // Attach Button
+                IconButton(
+                  tooltip: _isRtl ? 'إرفاق ملف أو جدول' : 'Attach file',
+                  icon: const Icon(Icons.add, size: 20),
+                  onPressed: _handlePickFile,
+                ),
+
+                // Web Search Toggle Chip
+                InkWell(
+                  onTap: () => setState(() => _isWebSearch = !_isWebSearch),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _isWebSearch ? AppColors.info.withValues(alpha: 0.2) : Colors.transparent,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(
+                      Icons.language,
+                      size: 18,
+                      color: _isWebSearch ? AppColors.info : textColor.withValues(alpha: 0.6),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+
+                // Text Field
+                Expanded(
+                  child: TextField(
+                    controller: _message,
+                    maxLines: 4,
+                    minLines: 1,
+                    style: TextStyle(fontSize: 14, color: textColor),
+                    decoration: InputDecoration(
+                      hintText: _isRtl ? 'اسأل أي شيء... (اكتب / للأوامر)' : 'Ask anything... (type / for commands)',
+                      hintStyle: TextStyle(fontSize: 13, color: textColor.withValues(alpha: 0.5)),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    ),
+                    onChanged: (val) => setState(() {}),
+                    onSubmitted: (val) => _handleSendMessage(val),
+                  ),
+                ),
+
+                // Voice Mic
+                IconButton(
+                  tooltip: _isRtl ? 'محادثة صوتية' : 'Voice Mode',
+                  icon: const Icon(Icons.mic, size: 20),
+                  onPressed: _openVoiceMode,
+                ),
+
+                // Send Button
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _message.text.trim().isNotEmpty || _attachments.isNotEmpty
+                        ? (isDark ? Colors.white : Colors.black)
+                        : (isDark ? const Color(0xFF404040) : const Color(0xFFD6D6D6)),
+                  ),
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    icon: Icon(
+                      Icons.arrow_upward,
+                      size: 18,
+                      color: isDark ? Colors.black : Colors.white,
+                    ),
+                    onPressed: () => _handleSendMessage(_message.text),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _isRtl
+                ? 'قد يرتكب شات جي بي تي أخطاء. تحقق من المعلومات المهمة.'
+                : 'ChatGPT can make mistakes. Check important info.',
+            style: TextStyle(
+              fontSize: 10.5,
+              color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
 }

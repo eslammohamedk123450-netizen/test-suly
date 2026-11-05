@@ -1,5 +1,15 @@
 import 'message.dart';
 
+String _normalizeModel(String? model) {
+  if (model == null ||
+      model.isEmpty ||
+      model.toLowerCase().startsWith('gpt-') ||
+      model.toLowerCase() == 'o1') {
+    return 'suly-pro';
+  }
+  return model;
+}
+
 /// نموذج محادثة مستقلة تحتفظ بقائمة رسائلها الخاصة مع دعم المجلدات والتثبيت
 class Conversation {
   final String id;
@@ -19,7 +29,7 @@ class Conversation {
     DateTime? updatedAt,
     this.folderId,
     this.isPinned = false,
-    this.model = 'gpt-4o',
+    this.model = 'suly-pro',
   }) : updatedAt = updatedAt ?? createdAt;
 
   void addMessage(Message message) {
@@ -82,7 +92,8 @@ class Conversation {
       };
 
   factory Conversation.fromJson(Map<String, dynamic> json) => Conversation(
-        id: json['id'] as String? ?? 'conv-${DateTime.now().millisecondsSinceEpoch}',
+        id: json['id'] as String? ??
+            'conv-${DateTime.now().millisecondsSinceEpoch}',
         title: json['title'] as String? ?? 'New Chat',
         createdAt: json['createdAt'] != null
             ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
@@ -92,7 +103,7 @@ class Conversation {
             : DateTime.now(),
         folderId: json['folderId'] as String?,
         isPinned: json['isPinned'] as bool? ?? false,
-        model: json['model'] as String? ?? 'gpt-4o',
+        model: _normalizeModel(json['model'] as String?),
         messages: (json['messages'] as List<dynamic>?)
                 ?.map((m) => Message.fromJson(m as Map<String, dynamic>))
                 .toList() ??

@@ -5,18 +5,20 @@ import '../../../core/theme/app_spacing.dart';
 import '../data/auth_api_service.dart';
 import '../data/auth_session.dart';
 
-Future<bool> ensureUserSession(BuildContext context) async {
+Future<bool> ensureUserSession(BuildContext context,
+    {bool isRtl = true}) async {
   if (AuthSession.accessToken != null) return true;
   final authenticated = await showDialog<bool>(
     context: context,
     barrierDismissible: false,
-    builder: (_) => const _AuthGateDialog(),
+    builder: (_) => _AuthGateDialog(isRtl: isRtl),
   );
   return authenticated == true && AuthSession.accessToken != null;
 }
 
 class _AuthGateDialog extends StatefulWidget {
-  const _AuthGateDialog();
+  const _AuthGateDialog({required this.isRtl});
+  final bool isRtl;
 
   @override
   State<_AuthGateDialog> createState() => _AuthGateDialogState();
@@ -67,11 +69,14 @@ class _AuthGateDialogState extends State<_AuthGateDialog> {
   @override
   Widget build(BuildContext context) {
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: widget.isRtl ? TextDirection.rtl : TextDirection.ltr,
       child: AlertDialog(
         backgroundColor: AppColors.surface,
-        title: Text(
-            _registerMode ? 'إنشاء حساب للمحادثة' : 'سجّل الدخول للمتابعة'),
+        title: Text(widget.isRtl
+            ? (_registerMode ? 'إنشاء حساب للمحادثة' : 'سجّل الدخول للمتابعة')
+            : (_registerMode
+                ? 'Create an account to chat'
+                : 'Sign in to continue')),
         content: SizedBox(
           width: 420,
           child: SingleChildScrollView(
@@ -79,7 +84,9 @@ class _AuthGateDialogState extends State<_AuthGateDialog> {
               key: _formKey,
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Text(
-                  'تتطلب المحادثة حسابًا حتى لا تكون مفاتيح مزودي الذكاء متاحة للاستخدام العام.',
+                  widget.isRtl
+                      ? 'تتطلب المحادثة حسابًا لحماية مفاتيح مزودي الذكاء الاصطناعي.'
+                      : 'A signed-in account is required to protect AI provider credentials.',
                   style: const TextStyle(color: AppColors.textMuted),
                 ),
                 if (_registerMode) ...[
@@ -87,8 +94,10 @@ class _AuthGateDialogState extends State<_AuthGateDialog> {
                   TextFormField(
                     controller: _fullName,
                     textInputAction: TextInputAction.next,
-                    decoration:
-                        const InputDecoration(labelText: 'الاسم (اختياري)'),
+                    decoration: InputDecoration(
+                      labelText:
+                          widget.isRtl ? 'الاسم (اختياري)' : 'Name (optional)',
+                    ),
                   ),
                 ],
                 const SizedBox(height: AppSpacing.md),
@@ -96,10 +105,13 @@ class _AuthGateDialogState extends State<_AuthGateDialog> {
                   controller: _email,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
-                  decoration:
-                      const InputDecoration(labelText: 'البريد الإلكتروني'),
+                  decoration: InputDecoration(
+                    labelText: widget.isRtl ? 'البريد الإلكتروني' : 'Email',
+                  ),
                   validator: (value) => value == null || !value.contains('@')
-                      ? 'أدخل بريدًا إلكترونيًا صالحًا'
+                      ? (widget.isRtl
+                          ? 'أدخل بريدًا إلكترونيًا صالحًا'
+                          : 'Enter a valid email address')
                       : null,
                 ),
                 const SizedBox(height: AppSpacing.md),
@@ -108,8 +120,12 @@ class _AuthGateDialogState extends State<_AuthGateDialog> {
                   obscureText: _obscurePassword,
                   onFieldSubmitted: (_) => _submit(),
                   decoration: InputDecoration(
-                    labelText: 'كلمة المرور',
-                    helperText: _registerMode ? 'ثمانية أحرف على الأقل' : null,
+                    labelText: widget.isRtl ? 'كلمة المرور' : 'Password',
+                    helperText: _registerMode
+                        ? (widget.isRtl
+                            ? 'ثمانية أحرف على الأقل'
+                            : 'At least 8 characters')
+                        : null,
                     suffixIcon: IconButton(
                       onPressed: () =>
                           setState(() => _obscurePassword = !_obscurePassword),
@@ -119,17 +135,25 @@ class _AuthGateDialogState extends State<_AuthGateDialog> {
                     ),
                   ),
                   validator: (value) {
-                    if (value == null || value.isEmpty)
-                      return 'أدخل كلمة المرور';
-                    if (_registerMode && value.length < 8)
-                      return 'الحد الأدنى 8 أحرف';
+                    if (value == null || value.isEmpty) {
+                      return widget.isRtl
+                          ? 'أدخل كلمة المرور'
+                          : 'Enter your password';
+                    }
+                    if (_registerMode && value.length < 8) {
+                      return widget.isRtl
+                          ? 'الحد الأدنى 8 أحرف'
+                          : 'Use at least 8 characters';
+                    }
                     return null;
                   },
                 ),
                 if (_error != null) ...[
                   const SizedBox(height: AppSpacing.md),
                   Align(
-                    alignment: Alignment.centerRight,
+                    alignment: widget.isRtl
+                        ? Alignment.centerRight
+                        : Alignment.centerLeft,
                     child: Text(_error!,
                         style: const TextStyle(color: AppColors.error)),
                   ),
@@ -141,7 +165,7 @@ class _AuthGateDialogState extends State<_AuthGateDialog> {
         actions: [
           TextButton(
             onPressed: _loading ? null : () => Navigator.of(context).pop(false),
-            child: const Text('لاحقًا'),
+            child: Text(widget.isRtl ? 'لاحقًا' : 'Later'),
           ),
           TextButton(
             onPressed: _loading
@@ -150,15 +174,17 @@ class _AuthGateDialogState extends State<_AuthGateDialog> {
                       _registerMode = !_registerMode;
                       _error = null;
                     }),
-            child: Text(_registerMode ? 'لدي حساب' : 'إنشاء حساب'),
+            child: Text(widget.isRtl
+                ? (_registerMode ? 'لدي حساب' : 'إنشاء حساب')
+                : (_registerMode ? 'I have an account' : 'Create account')),
           ),
           FilledButton(
             onPressed: _loading ? null : _submit,
             child: Text(_loading
-                ? 'جارٍ الاتصال...'
-                : _registerMode
-                    ? 'إنشاء وتسجيل الدخول'
-                    : 'تسجيل الدخول'),
+                ? (widget.isRtl ? 'جارٍ الاتصال...' : 'Connecting...')
+                : widget.isRtl
+                    ? (_registerMode ? 'إنشاء وتسجيل الدخول' : 'تسجيل الدخول')
+                    : (_registerMode ? 'Create & sign in' : 'Sign in')),
           ),
         ],
       ),

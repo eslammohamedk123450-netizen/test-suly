@@ -177,11 +177,11 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const slashCommands: SlashCommand[] = [
     {
       cmd: '/image',
-      label: isRtl ? 'توليد صورة (DALL·E)' : 'Generate Image',
-      description: isRtl ? 'ارسم مشهداً أو صورة فوتوغرافية مبتكرة' : 'Create a photorealistic or artistic image',
+      label: isRtl ? 'صياغة وصف لصورة' : 'Write an image prompt',
+      description: isRtl ? 'اكتب وصفًا تفصيليًا يمكنك استخدامه مع أداة صور خارجية' : 'Write a detailed prompt for an external image tool',
       icon: <Sparkles size={16} className="text-emerald-500" />,
       action: () => {
-        setInputText(isRtl ? 'ارسم صورة فوتوغرافية لـ ' : 'Generate an image of ');
+        setInputText(isRtl ? 'ساعدني في كتابة وصف تفصيلي لصورة عن ' : 'Help me write a detailed prompt for an image of ');
         setShowSlashMenu(false);
       },
     },
@@ -341,7 +341,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={isRtl ? 'اكتب رسالة إلى ChatGPT... (اكتب / للأوامر السريعة)' : 'Message ChatGPT... (type / for commands)'}
+          placeholder={isRtl ? 'اكتب رسالة إلى SULY... (اكتب / للأوامر السريعة)' : 'Message SULY... (type / for commands)'}
           rows={1}
           className="w-full bg-transparent resize-none px-3 pt-1 pb-2 text-sm md:text-[15px] leading-relaxed text-[#0d0d0d] dark:text-[#ececec] placeholder-[#8e8e8e] focus:outline-none max-h-[200px]"
         />
@@ -442,8 +442,8 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       {/* Footnote Disclaimer */}
       <div className="text-center pt-2 text-[11px] text-[#8e8e8e] tracking-tight">
         {isRtl
-          ? 'يمكن أن يرتكب ChatGPT أخطاء. تحقق من المعلومات المهمة.'
-          : 'ChatGPT can make mistakes. Check important info.'}
+          ? 'يمكن أن يرتكب SULY أخطاء. تحقق من المعلومات المهمة.'
+          : 'SULY can make mistakes. Check important info.'}
       </div>
     </div>
   );

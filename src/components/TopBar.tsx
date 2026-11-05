@@ -90,13 +90,13 @@ export const TopBar: React.FC<TopBarProps> = ({
           </button>
         )}
 
-        {/* ChatGPT Model Selector Dropdown */}
+        {/* SULY Model Selector Dropdown */}
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setModelDropdownOpen(!modelDropdownOpen)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-base font-semibold text-[#0d0d0d] dark:text-[#ececec] hover:bg-[#f0f0f0] dark:hover:bg-[#2f2f2f] transition-colors"
           >
-            <span>ChatGPT</span>
+            <span>SULY</span>
             <span className="text-xs text-[#8e8e8e] font-normal">{currentModel?.name}</span>
             <ChevronDown size={14} className="text-[#8e8e8e] transition-transform duration-200" />
           </button>

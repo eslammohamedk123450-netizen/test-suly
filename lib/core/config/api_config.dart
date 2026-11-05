@@ -7,15 +7,29 @@
 /// - Flutter Web: العنوان الذي يمكن الوصول إليه من المتصفح، مع مراعاة
 ///   إعدادات CORS في FastAPI.
 ///
-/// لا تُستخدم القيمة "localhost" كعنوان صالح لكل المنplas폼ات.
+/// لا تستخدم القيم الافتراضية في الإنتاج أو على الهاتف الحقيقي.
+import 'package:flutter/foundation.dart';
+
 class ApiConfig {
   ApiConfig._();
 
   /// عنوان القاعدة للسيرفر (بدون شرطة مائلة في النهاية).
-  static const String baseUrl = String.fromEnvironment(
+  static const String _configuredBaseUrl = String.fromEnvironment(
     'SULY_API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8000',
   );
+
+  static String get baseUrl {
+    if (_configuredBaseUrl.isNotEmpty) {
+      return _configuredBaseUrl.replaceFirst(RegExp(r'/+$'), '');
+    }
+    if (kIsWeb || defaultTargetPlatform == TargetPlatform.iOS) {
+      return 'http://localhost:8000';
+    }
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      return 'http://10.0.2.2:8000';
+    }
+    return 'http://localhost:8000';
+  }
 
   /// مسار نقطة نهاية المحادثة الكامل.
   static const String chatEndpoint = '/api/v1/chat/';

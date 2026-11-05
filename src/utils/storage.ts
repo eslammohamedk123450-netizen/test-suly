@@ -6,11 +6,7 @@ const SETTINGS_KEY = 'chatgpt_settings_v1';
 const PROFILE_KEY = 'chatgpt_profile_v1';
 const FOLDERS_KEY = 'chatgpt_folders_v1';
 
-export const initialFolders: Folder[] = [
-  { id: 'folder-1', name: 'مشاريع البرمجة والتطوير', color: '#10a37f', createdAt: Date.now() - 86400000 * 5 },
-  { id: 'folder-2', name: 'أبحاث ودراسات الذكاء الاصطناعي', color: '#8b5cf6', createdAt: Date.now() - 86400000 * 3 },
-];
-
+export const initialFolders: Folder[] = [];
 export const defaultSettings: AppSettings = {
   theme: 'dark',
   language: 'ar',
@@ -22,130 +18,18 @@ export const defaultSettings: AppSettings = {
   soundEnabled: true,
   streamResponse: true,
   memoryEnabled: true,
-  memories: [
-    { id: 'mem-1', content: 'يفضل المستخدم استخدام TypeScript و React و Tailwind CSS في بناء واجهات الويب الحديثة.', createdAt: Date.now() - 86400000 * 2 },
-    { id: 'mem-2', content: 'يفضل الإجابات الدقيقة المدعومة بالأكواد النظيفة مع الشرح المباشر وتجنب الحشو.', createdAt: Date.now() - 86400000 * 1 },
-    { id: 'mem-3', content: 'يعمل على مشاريع ذكاء اصطناعي وتطبيقات سحابية متقدمة (Suly AI).', createdAt: Date.now() - 3600000 * 12 },
-  ],
+  memories: [],
 };
 
 export const defaultProfile: UserProfile = {
-  name: 'Eslam Mohamed',
-  email: 'eslammohamedk123450@gmail.com',
-  plan: 'Plus',
-  avatarInitials: 'EM',
+  name: 'SULY User',
+  email: '',
+  plan: 'Free',
+  avatarInitials: 'SU',
 };
 
-// Initial welcome conversation so the user sees real chat history immediately
-export const initialConversations: Conversation[] = [
-  {
-    id: 'conv-sample-1',
-    title: 'مرحبا بك في ChatGPT',
-    createdAt: Date.now() - 1000 * 60 * 30, // 30 mins ago
-    updatedAt: Date.now() - 1000 * 60 * 30,
-    model: 'gpt-4o',
-    isPinned: true,
-    messages: [
-      {
-        id: 'msg-1',
-        role: 'user',
-        content: 'مرحبًا! ما هي مميزات ChatGPT الجديدة؟',
-        createdAt: Date.now() - 1000 * 60 * 30,
-      },
-      {
-        id: 'msg-2',
-        role: 'assistant',
-        content: `أهلاً بك! **ChatGPT** تم تصميمه ليوفر تجربة محادثة فائقة السرعة والدقة. إليك أبرز الميزات المتاحة لك الآن:
-
-### 🌟 المميزات الرئيسية:
-- **تبديل النماذج الذكي**: اختيار بين **GPT-4o** (النموذج الرائد الشامل)، و**o1** (نموذج التفكير العميق وحل المشكلات الهندسية والبرمجية المعقدة)، و**GPT-4o mini** (السرعة الفائقة للمهام اليومية).
-- **وضع البحث في الويب (Search)**: تفعيل زر الكرة الأرضية 🌐 للبحث الفوري عن أحدث البيانات والروابط.
-- **وضع التفكير المتقدم (Reasoning)**: تفعيل زر المصباح 💡 لرؤية خطوات التفكير المنطقي خطوة بخطوة.
-- **إرفاق الملفات والصور**: دعم فحص الصور والمستندات وتحليلها مباشرة.
-- **المحادثة الصوتية (Voice Mode)**: محادثة تفاعلية مباشرة مع مؤثرات بصرية حية واختيار أصوات طبيعية.
-- **إدارة المحادثات الكاملة**: تثبيت، إعادة تسمية، أرشفة، حذف، ومشاركة الروابط.
-- **التصميم المظلم والفاتح**: دعم كامل لمظهر ChatGPT الداكن الأيقوني والوضع الفاتح ودعم العربية RTL والإنجليزية LTR.
-
-ما الذي تحب أن نبدأ به اليوم؟`,
-        createdAt: Date.now() - 1000 * 60 * 29,
-        modelUsed: 'gpt-4o',
-      },
-    ],
-  },
-  {
-    id: 'conv-sample-2',
-    title: 'كود Python لتحليل البيانات',
-    createdAt: Date.now() - 1000 * 60 * 60 * 24, // Yesterday
-    updatedAt: Date.now() - 1000 * 60 * 60 * 24,
-    model: 'gpt-4o',
-    messages: [
-      {
-        id: 'msg-21',
-        role: 'user',
-        content: 'اكتب لي مثال كود بايثون سريع لقراءة ملف CSV وحساب المتوسطات.',
-        createdAt: Date.now() - 1000 * 60 * 60 * 24,
-      },
-      {
-        id: 'msg-22',
-        role: 'assistant',
-        content: `إليك كود بايثون بسيط وأنيق باستخدام مكتبة **pandas**:
-
-\`\`\`python
-import pandas as pd
-
-# تحميل ملف البيانات
-df = pd.read_csv('sales_data.csv')
-
-# عرض أول 5 أسطر
-print("--- نظرة عامة على البيانات ---")
-print(df.head())
-
-# حساب المتوسطات للأعمدة الرقمية
-numeric_summary = df.describe().T[['mean', 'std', 'min', 'max']]
-print("\n--- الإحصائيات والمتوسطات ---")
-print(numeric_summary)
-\`\`\`
-
-يمكنك تنفيذ هذا الكود مباشرة، أو إذا كان لديك ملف حقيقي يمكنك رفعه هنا وسأقوم بتحليله لك فوراً!`,
-        createdAt: Date.now() - 1000 * 60 * 60 * 24 + 1000,
-        modelUsed: 'gpt-4o',
-      },
-    ],
-  },
-  {
-    id: 'conv-sample-3',
-    title: 'خطة وجبات صحية ورياضية',
-    createdAt: Date.now() - 1000 * 60 * 60 * 24 * 3, // 3 days ago
-    updatedAt: Date.now() - 1000 * 60 * 60 * 24 * 3,
-    model: 'o1',
-    messages: [
-      {
-        id: 'msg-31',
-        role: 'user',
-        content: 'اقترح لي نظام غذائي بسيط عالي البروتين.',
-        createdAt: Date.now() - 1000 * 60 * 60 * 24 * 3,
-      },
-      {
-        id: 'msg-32',
-        role: 'assistant',
-        content: `إليك جدول يومي متوازن عالي البروتين:
-
-| الوجبة | المكونات | كمية البروتين المقدرة |
-| :--- | :--- | :--- |
-| **الإفطار** | 3 بيضات مسلوقة + شوفان مع حليب ولوز | ~30 جرام |
-| **سناك خفيف** | علبة زبادي يوناني + ثمرة تفاح | ~15 جرام |
-| **الغداء** | 200 جم صدور دجاج مشوية + أرز بني + سلطة خضراء | ~45 جرام |
-| **سناك قبل التمرين**| موزة مع ملعقة زبدة فول سوداني | ~8 جرام |
-| **العشاء** | علبة تونة مصفاة أو سلمون مشوي + بطاطا حلوة | ~35 جرام |
-
-إجمالي البروتين اليومي يصل لحوالي **130-140 جرام** وهو ممتاز لبناء العضلات والاستشفاء الرياضي.`,
-        createdAt: Date.now() - 1000 * 60 * 60 * 24 * 3 + 2000,
-        modelUsed: 'o1',
-      },
-    ],
-  },
-];
-
+// Start with a clean history; do not seed fabricated conversations for new users.
+export const initialConversations: Conversation[] = [];
 export function loadConversations(): Conversation[] {
   try {
     const raw = localStorage.getItem(CONVERSATIONS_KEY);
@@ -244,7 +128,7 @@ export function saveFolders(folders: Folder[]) {
   }
 }
 
-// Group conversations into ChatGPT standard date groups
+// Group conversations into SULY standard date groups
 export interface GroupedConversations {
   pinned: Conversation[];
   today: Conversation[];

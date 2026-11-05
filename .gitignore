@@ -6,3 +6,30 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Flutter / Dart generated files
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+android/local.properties
+android/.gradle/
+android/app/debug/
+android/app/profile/
+android/app/release/
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Flutter/.last_build_id
+ios/Pods/
+
+# IDE files
+.idea/
+*.iml
+
+# Python test artifacts
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.db

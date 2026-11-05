@@ -2,11 +2,16 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../auth/data/auth_session.dart';
+import '../../auth/presentation/auth_gate_dialog.dart';
 import '../../../core/models/attachment_item.dart';
 import '../../../core/models/canvas_state.dart';
 import '../../../core/models/folder.dart';
 import '../../../core/models/memory_item.dart';
 import '../../../core/theme/app_colors.dart';
+import '../data/chat_api_service.dart';
+import '../data/chat_attachment_api_service.dart';
+import '../data/conversation_api_service.dart';
 import '../domain/conversation.dart';
 import '../domain/message.dart';
 import 'widgets/canvas_panel.dart';
@@ -18,7 +23,12 @@ import 'widgets/slash_commands_menu.dart';
 import 'widgets/voice_mode_dialog.dart';
 
 class FunctionalChatScreen extends StatefulWidget {
-  const FunctionalChatScreen({super.key, this.onLocaleChanged});
+  const FunctionalChatScreen({
+    super.key,
+    this.languageCode = 'ar',
+    this.onLocaleChanged,
+  });
+  final String languageCode;
   final ValueChanged<String>? onLocaleChanged;
 
   @override
@@ -31,13 +41,13 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
 
   List<Conversation> _conversations = [];
   String? _currentConvId;
+  Conversation? _temporaryConversation;
+  final Map<String, String> _backendConversationIds = {};
   List<Folder> _folders = [];
   List<MemoryItem> _memories = [];
   bool _memoryEnabled = true;
 
-  String _selectedModel = 'gpt-4o';
   bool _isWebSearch = false;
-  bool _isReasoning = false;
   bool _isTemporary = false;
   bool _isGenerating = false;
   bool _isDarkTheme = true;
@@ -50,42 +60,25 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
   final CanvasState _canvas = CanvasState(
     isOpen: false,
     title: 'code_snippet.dart',
-    content: '// مرحباً بك في مساحة عمل كانفاس\nvoid main() {\n  print("Hello Canvas Workspace!");\n}',
+    content:
+        '// مرحباً بك في مساحة عمل كانفاس\nvoid main() {\n  print("Hello Canvas Workspace!");\n}',
     language: 'dart',
     type: 'code',
   );
 
-  final List<Map<String, String>> _availableModels = [
-    {
-      'id': 'gpt-4o',
-      'name': 'GPT-4o',
-      'tag': 'Flagship',
-      'desc': 'أذكى نموذج لجميع المهام والكتابة والبرمجة',
-    },
-    {
-      'id': 'o1',
-      'name': 'o1',
-      'tag': 'Reasoning',
-      'desc': 'تفكير منطقي وحل المشاكل المعقدة في الرياضيات والبرمجة',
-    },
-    {
-      'id': 'gpt-4o-mini',
-      'name': 'GPT-4o mini',
-      'tag': 'Fast',
-      'desc': 'فائق السرعة وخفيف للمهام اليومية السريعة',
-    },
-    {
-      'id': 'o3-mini',
-      'name': 'o3-mini',
-      'tag': 'STEM',
-      'desc': 'نموذج منطقي متقدم عالي السرعة في الهندسة والمنطق',
-    },
-  ];
-
   @override
   void initState() {
     super.initState();
+    _isRtl = widget.languageCode == 'ar';
     _loadFromStorage();
+  }
+
+  @override
+  void didUpdateWidget(covariant FunctionalChatScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.languageCode != widget.languageCode) {
+      setState(() => _isRtl = widget.languageCode == 'ar');
+    }
   }
 
   @override
@@ -97,48 +90,50 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
 
   Future<void> _loadFromStorage() async {
     try {
+      await AuthSession.restoreAccessToken();
       final prefs = await SharedPreferences.getInstance();
       _isDarkTheme = prefs.getBool('chatgpt_dark_theme') ?? true;
       _memoryEnabled = prefs.getBool('chatgpt_memory_enabled') ?? true;
-      _selectedModel = prefs.getString('chatgpt_model') ?? 'gpt-4o';
 
       // Load folders
       final foldersRaw = prefs.getString('chatgpt_folders');
       if (foldersRaw != null) {
         final list = jsonDecode(foldersRaw) as List<dynamic>;
-        _folders = list.map((f) => Folder.fromJson(f as Map<String, dynamic>)).toList();
+        _folders = list
+            .map((f) => Folder.fromJson(f as Map<String, dynamic>))
+            .toList();
       } else {
-        _folders = [
-          Folder(id: 'folder-1', name: '📱 تطبيقات الموبايل', createdAt: DateTime.now()),
-          Folder(id: 'folder-2', name: '🌐 مشاريع الويب', createdAt: DateTime.now()),
-        ];
+        _folders = [];
       }
 
       // Load memories
       final memoriesRaw = prefs.getString('chatgpt_memories');
       if (memoriesRaw != null) {
         final list = jsonDecode(memoriesRaw) as List<dynamic>;
-        _memories = list.map((m) => MemoryItem.fromJson(m as Map<String, dynamic>)).toList();
+        _memories = list
+            .map((m) => MemoryItem.fromJson(m as Map<String, dynamic>))
+            .toList();
       } else {
-        _memories = [
-          MemoryItem(
-            id: 'mem-1',
-            content: 'المستخدم يفضل كتابة التطبيقات باستخدام Flutter للويب والموبايل.',
-            createdAt: DateTime.now(),
-          ),
-          MemoryItem(
-            id: 'mem-2',
-            content: 'لغة التخاطب والشرح المفضلة هي اللغة العربية الفصحى الواضحة.',
-            createdAt: DateTime.now(),
-          ),
-        ];
+        _memories = [];
       }
 
       // Load conversations
       final convsRaw = prefs.getString('chatgpt_conversations');
+      final backendIdsRaw = prefs.getString('suly_backend_conversation_ids');
+      if (backendIdsRaw != null) {
+        final decoded = jsonDecode(backendIdsRaw);
+        if (decoded is Map<String, dynamic>) {
+          _backendConversationIds
+            ..clear()
+            ..addAll(
+                decoded.map((key, value) => MapEntry(key, value.toString())));
+        }
+      }
       if (convsRaw != null) {
         final list = jsonDecode(convsRaw) as List<dynamic>;
-        _conversations = list.map((c) => Conversation.fromJson(c as Map<String, dynamic>)).toList();
+        _conversations = list
+            .map((c) => Conversation.fromJson(c as Map<String, dynamic>))
+            .toList();
         if (_conversations.isNotEmpty) {
           _currentConvId = _conversations.first.id;
         }
@@ -153,11 +148,14 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('chatgpt_dark_theme', _isDarkTheme);
       await prefs.setBool('chatgpt_memory_enabled', _memoryEnabled);
-      await prefs.setString('chatgpt_model', _selectedModel);
       await prefs.setString(
-          'chatgpt_folders', jsonEncode(_folders.map((f) => f.toJson()).toList()));
-      await prefs.setString(
-          'chatgpt_memories', jsonEncode(_memories.map((m) => m.toJson()).toList()));
+        'suly_backend_conversation_ids',
+        jsonEncode(_backendConversationIds),
+      );
+      await prefs.setString('chatgpt_folders',
+          jsonEncode(_folders.map((f) => f.toJson()).toList()));
+      await prefs.setString('chatgpt_memories',
+          jsonEncode(_memories.map((m) => m.toJson()).toList()));
 
       if (!_isTemporary) {
         await prefs.setString('chatgpt_conversations',
@@ -167,20 +165,16 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
   }
 
   Conversation? get _currentConversation {
+    if (_isTemporary) return _temporaryConversation;
     if (_currentConvId == null) return null;
-    return _conversations.firstWhere(
-      (c) => c.id == _currentConvId,
-      orElse: () => Conversation(
-        id: 'new',
-        title: 'New Chat',
-        createdAt: DateTime.now(),
-      ),
-    );
+    final index = _conversations.indexWhere((c) => c.id == _currentConvId);
+    return index == -1 ? null : _conversations[index];
   }
 
   void _handleNewChat() {
     setState(() {
       _currentConvId = null;
+      _temporaryConversation = null;
       _attachments.clear();
       _canvas.isOpen = false;
     });
@@ -189,6 +183,8 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
   void _handleSelectConv(String id) {
     setState(() {
       _currentConvId = id;
+      _isTemporary = false;
+      _temporaryConversation = null;
       _attachments.clear();
     });
   }
@@ -196,8 +192,10 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
   void _handleDeleteConv(String id) {
     setState(() {
       _conversations.removeWhere((c) => c.id == id);
+      _backendConversationIds.remove(id);
       if (_currentConvId == id) {
-        _currentConvId = _conversations.isNotEmpty ? _conversations.first.id : null;
+        _currentConvId =
+            _conversations.isNotEmpty ? _conversations.first.id : null;
       }
     });
     _saveToStorage();
@@ -257,30 +255,70 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
 
   Future<void> _handlePickFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        allowMultiple: false,
-        withData: true,
+      final f = await FilePicker.pickFile(
+        type: FileType.custom,
+        allowedExtensions: const [
+          'csv',
+          'txt',
+          'md',
+          'json',
+          'pdf',
+          'png',
+          'jpg',
+          'jpeg',
+          'webp',
+        ],
       );
-      if (result != null && result.files.isNotEmpty) {
-        final f = result.files.first;
+      if (f != null) {
+        final bytes = await f.readAsBytes();
+        final fileSize = f.lengthSync() ?? bytes.length;
+        if (fileSize > 10 * 1024 * 1024) {
+          throw StateError(_isRtl
+              ? 'حجم الملف يتجاوز 10 ميغابايت.'
+              : 'The file exceeds the 10 MiB limit.');
+        }
+        final extension = (f.extension ?? '').toLowerCase();
+        const mimeTypes = <String, String>{
+          'csv': 'text/csv',
+          'txt': 'text/plain',
+          'md': 'text/markdown',
+          'json': 'application/json',
+          'pdf': 'application/pdf',
+          'png': 'image/png',
+          'jpg': 'image/jpeg',
+          'jpeg': 'image/jpeg',
+          'webp': 'image/webp',
+        };
+        final mimeType = mimeTypes[extension];
+        if (mimeType == null) {
+          throw StateError(_isRtl
+              ? 'نوع الملف غير مدعوم.'
+              : 'This file type is not supported.');
+        }
         String? textContent;
-        if (f.bytes != null && (f.extension == 'csv' || f.extension == 'txt' || f.extension == 'dart' || f.extension == 'json')) {
-          textContent = utf8.decode(f.bytes!, allowMalformed: true);
+        if (const {'csv', 'txt', 'md', 'json'}.contains(extension)) {
+          textContent = utf8.decode(bytes, allowMalformed: true);
         }
 
         final att = AttachmentItem(
           id: 'att-${DateTime.now().millisecondsSinceEpoch}',
           name: f.name,
-          mimeType: f.extension == 'csv' ? 'text/csv' : 'application/octet-stream',
-          data: textContent ?? (f.bytes != null ? base64Encode(f.bytes!) : ''),
-          size: f.size,
-          type: (f.extension == 'png' || f.extension == 'jpg' || f.extension == 'jpeg') ? 'image' : 'file',
+          mimeType: mimeType,
+          data: textContent ?? base64Encode(bytes),
+          size: fileSize,
+          type: mimeType.startsWith('image/') ? 'image' : 'file',
           textContent: textContent,
         );
 
         setState(() => _attachments.add(att));
       }
-    } catch (_) {}
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(error.toString().replaceFirst('Bad state: ', ''))),
+      );
+    }
   }
 
   void _openFileInspector(AttachmentItem att) {
@@ -351,50 +389,109 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
     });
   }
 
+  Future<int> _ensureBackendConversationId(Conversation conversation) async {
+    final knownId = _backendConversationIds[conversation.id];
+    final parsedKnownId = knownId == null ? null : int.tryParse(knownId);
+    if (parsedKnownId != null) return parsedKnownId;
+
+    final backendConversation = await ConversationApiService()
+        .createConversationBackend(title: conversation.title);
+    final backendId = int.tryParse(backendConversation.id);
+    if (backendId == null) {
+      throw const FormatException('تعذر قراءة معرّف المحادثة من الخادم.');
+    }
+    _backendConversationIds[conversation.id] = backendConversation.id;
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(
+      'suly_backend_conversation_ids',
+      jsonEncode(_backendConversationIds),
+    );
+    return backendId;
+  }
+
+  String _prepareCommand(String text) {
+    final trimmed = text.trim();
+    final separator = trimmed.indexOf(' ');
+    final command = separator < 0 ? trimmed : trimmed.substring(0, separator);
+    final content =
+        separator < 0 ? '' : trimmed.substring(separator + 1).trim();
+    if (!command.startsWith('/')) return text;
+    switch (command) {
+      case '/reason':
+        return 'حلّل الطلب بعناية ثم قدّم نتيجة واضحة ومبررًا موجزًا، دون عرض سلسلة التفكير الداخلية.\n\n$content';
+      case '/summarize':
+        return 'لخّص النص التالي في نقاط واضحة مع الحفاظ على أهم المعلومات:\n\n$content';
+      case '/code':
+        return 'اكتب أو راجع الكود المطلوب، واشرح باختصار كيفية تشغيله:\n\n$content';
+      case '/chart':
+        return 'حلّل البيانات المطلوبة واقترح جدولًا أو رسمًا بيانيًا مناسبًا. كن صريحًا إن لم تُرفق بيانات.\n\n$content';
+      case '/web':
+        return 'يطلب المستخدم معلومات حديثة من الويب. إذا لم تتوفر لك أداة بحث حي، وضّح ذلك ولا تختلق مصادر.\n\n$content';
+      case '/image':
+        return 'يطلب المستخدم إنشاء صورة. إذا لم تكن أداة توليد الصور متاحة في هذه الجلسة، اشرح ذلك ولا تدّعِ إنشاء صورة.\n\n$content';
+      default:
+        return text;
+    }
+  }
+
   Future<void> _handleSendMessage(
     String text, {
     List<AttachmentItem>? attachments,
-    bool webSearch = false,
-    bool reasoning = false,
   }) async {
-    if (text.trim().isEmpty && (attachments == null || attachments.isEmpty)) return;
+    if (text.trim() == '/canvas' &&
+        (attachments == null || attachments.isEmpty)) {
+      _openCanvas();
+      return;
+    }
+    if (text.trim().isEmpty && (attachments == null || attachments.isEmpty))
+      return;
     if (_isGenerating) return;
 
-    final userAttachments = attachments ?? List<AttachmentItem>.from(_attachments);
+    await AuthSession.restoreAccessToken();
+    if (!mounted) return;
+    if (!await ensureUserSession(context, isRtl: _isRtl) || !mounted) return;
+
+    final userAttachments =
+        attachments ?? List<AttachmentItem>.from(_attachments);
+    final current = _currentConversation;
+    final timestamp = DateTime.now();
+    final targetId = current?.id ?? 'conv-${timestamp.millisecondsSinceEpoch}';
     final userMsg = Message(
-      id: 'msg-${DateTime.now().millisecondsSinceEpoch}',
+      id: 'msg-${timestamp.millisecondsSinceEpoch}',
       text: text,
       isUser: true,
-      timestamp: DateTime.now(),
-      conversationId: _currentConvId ?? '',
+      timestamp: timestamp,
+      conversationId: targetId,
       attachments: userAttachments.isNotEmpty ? userAttachments : null,
     );
 
-    Conversation targetConv;
-    if (_currentConvId == null || _currentConversation == null) {
-      final title = text.isNotEmpty
-          ? (text.length > 28 ? '${text.substring(0, 28)}...' : text)
-          : (_isRtl ? 'محادثة جديدة' : 'New chat');
-
+    late final Conversation targetConv;
+    if (current == null) {
+      final titleSource = text.trim().isNotEmpty
+          ? text.trim()
+          : (userAttachments.isNotEmpty ? userAttachments.first.name : '');
+      final title = titleSource.length > 28
+          ? '${titleSource.substring(0, 28)}...'
+          : titleSource.isEmpty
+              ? (_isRtl ? 'محادثة جديدة' : 'New chat')
+              : titleSource;
       targetConv = Conversation(
-        id: 'conv-${DateTime.now().millisecondsSinceEpoch}',
+        id: targetId,
         title: title,
-        createdAt: DateTime.now(),
+        createdAt: timestamp,
         messages: [userMsg],
-        model: _selectedModel,
       );
-
-      if (!_isTemporary) {
-        setState(() {
+      setState(() {
+        if (_isTemporary) {
+          _temporaryConversation = targetConv;
+        } else {
           _conversations.insert(0, targetConv);
           _currentConvId = targetConv.id;
-        });
-      }
-    } else {
-      targetConv = _currentConversation!;
-      setState(() {
-        targetConv.addMessage(userMsg);
+        }
       });
+    } else {
+      targetConv = current;
+      setState(() => targetConv.addMessage(userMsg));
     }
 
     _message.clear();
@@ -402,115 +499,71 @@ class _FunctionalChatScreenState extends State<FunctionalChatScreen> {
       _attachments.clear();
       _isGenerating = true;
     });
-
     _scrollToBottom();
 
-    // Prepare Placeholder Assistant Message
-    final assistantMsgId = 'msg-${DateTime.now().millisecondsSinceEpoch + 1}';
-    final isO1Model = _selectedModel.startsWith('o1') || reasoning || _isReasoning;
+    String reply;
+    try {
+      final attachmentIds = <int>[];
+      for (final attachment in userAttachments) {
+        attachment.serverFileId ??=
+            await ChatAttachmentApiService().upload(attachment);
+        attachmentIds.add(attachment.serverFileId!);
+      }
 
-    // Simulate / Generate Assistant Response
-    await Future.delayed(const Duration(milliseconds: 600));
+      final conversationId =
+          _isTemporary ? null : await _ensureBackendConversationId(targetConv);
+      final history = targetConv.messages
+          .where((message) => message.id != userMsg.id)
+          .toList()
+          .reversed
+          .take(40)
+          .toList()
+          .reversed
+          .map((message) => <String, String>{
+                'role': message.isUser ? 'user' : 'assistant',
+                'content': message.text,
+              })
+          .toList(growable: false);
+      final contextParts = <String>[];
+      if (_memoryEnabled) {
+        contextParts.addAll(_memories.map((memory) => memory.content));
+      }
+      if (_isWebSearch) {
+        contextParts.add(
+          'The user requests up-to-date web information. If live search is not available, say so clearly and do not fabricate sources.',
+        );
+      }
 
-    String reply = '';
-    String? thought;
-
-    if (isO1Model) {
-      thought = '1. تحليل سؤال المستخدم وتحديد السياق المطلوب بدقة.\n2. استحضار تفضيلات الذاكرة وقواعد بنية Flutter و Dart.\n3. صياغة الإجابة بأعلى درجات الدقة والترتيب المنطقي.';
-    }
-
-    if (text.toLowerCase().contains('/canvas') || text.toLowerCase().contains('canvas')) {
-      reply = '''بالتأكيد! تم فتح مساحة العمل **Canvas** لتعديل الكود والمستندات بدقة عالية جنبًا إلى جنب مع المحادثة.
-
-يمكنك استخدام أزرار الذكاء الاصطناعي السريعة في أسفل الـ Canvas:
-- ✨ **تحسين (Polish)**
-- 📏 **تقصير (Shorten)**
-- 📖 **توسيع (Lengthen)**
-- 🐛 **فحص وتصليح الأخطاء (Fix Bugs)**
-- 💬 **إضافة تعليقات (Add Comments)**
-
-إليك نموذج الكود التفاعلي:
-```dart
-import 'package:flutter/material.dart';
-
-void main() => runApp(const MyApp());
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(title: const Text('ChatGPT Canvas')),
-        body: const Center(child: Text('Hello from Canvas!')),
-      ),
-    );
-  }
-}
-```''';
-      _openCanvas(
-        title: 'canvas_app.dart',
-        content: '''import 'package:flutter/material.dart';
-
-void main() => runApp(const MyApp());
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(title: const Text('ChatGPT Canvas')),
-        body: const Center(child: Text('Hello from Canvas!')),
-      ),
-    );
-  }
-}''',
-        language: 'dart',
+      final result = await sendMessage(
+        message: _prepareCommand(text),
+        history: history,
+        attachmentIds: attachmentIds,
+        conversationId: conversationId,
+        temporary: _isTemporary,
+        systemContext: contextParts.join('\n'),
       );
-    } else if (text.toLowerCase().contains('/image')) {
-      reply = '🎨 جاري توليد وتصميم الصورة بناءً على وصفك الدقيق بالذكاء الاصطناعي... تم إنشاء المعاينة بنجاح!';
-    } else if (text.toLowerCase().contains('csv') || userAttachments.any((a) => a.mimeType.contains('csv'))) {
-      reply = '''تم استلام ملف البيانات وفحصه بنجاح! 📊
-
-يمكنك النقر مباشرة على بطاقة الملف في أي وقت لفتح **مفتش الجداول التفاعلي (CSV Inspector)** والبحث داخل الصفوف وتصفحها بسلاسة.
-
-### الملخص التحليلي:
-- تم استخراج الأعمدة الرئيسية بنجاح.
-- البيانات متناسقة وجاهزة للتصور البياني وإنشاء الرسوم الإحصائية.''';
-    } else {
-      reply = '''أهلاً بك! أنا مساعدك الذكي المتطور بنموذج **$_selectedModel**.
-
-جاهز لمساعدتك في بناء تطبيقات الموبايل والويب باستخدام Flutter، كتابة ومراجعة الأكواد البرمجية، وتحليل البيانات والمستندات.
-
-يمكنك في أي وقت:
-1. كتابة `/` لفتح قائمة الأوامر الفورية (Slash Commands).
-2. فتح مساحة العمل **Canvas** لتعديل المستندات جنبًا إلى جنب.
-3. إدارة سجل ذكرياتك عبر تبويب الذاكرة في القائمة الجانبية.
-
-كيف يمكنني مساعدتك الآن؟''';
+      reply = result.success
+          ? result.reply!
+          : '⚠️ ${result.error ?? (_isRtl ? 'تعذر الحصول على رد.' : 'Could not get a response.')}';
+    } catch (error) {
+      reply = '⚠️ ${error.toString().replaceFirst('Bad state: ', '')}';
     }
 
+    if (!mounted) return;
     final assistantMsg = Message(
-      id: assistantMsgId,
+      id: 'msg-${DateTime.now().millisecondsSinceEpoch + 1}',
       text: reply,
       isUser: false,
       timestamp: DateTime.now(),
       conversationId: targetConv.id,
-      thoughts: thought,
-      modelUsed: _selectedModel,
+      modelUsed: 'SULY',
     );
-
-    if (mounted) {
-      setState(() {
-        targetConv.addMessage(assistantMsg);
-        _isGenerating = false;
-      });
-      _saveToStorage();
-      _scrollToBottom();
-    }
+    setState(() {
+      targetConv.addMessage(assistantMsg);
+      _isGenerating = false;
+    });
+    if (!_isTemporary) await _saveToStorage();
+    _scrollToBottom();
   }
 
   void _scrollToBottom() {
@@ -615,10 +668,13 @@ class MyApp extends StatelessWidget {
                                   controller: _scroll,
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 16, vertical: 12),
-                                  itemCount: _currentConversation!.messages.length,
+                                  itemCount:
+                                      _currentConversation!.messages.length,
                                   itemBuilder: (context, idx) {
-                                    final msg = _currentConversation!.messages[idx];
-                                    return _buildMessageRow(msg, isDark, border);
+                                    final msg =
+                                        _currentConversation!.messages[idx];
+                                    return _buildMessageRow(
+                                        msg, isDark, border);
                                   },
                                 ),
                         ),
@@ -654,10 +710,30 @@ class MyApp extends StatelessWidget {
     );
   }
 
+  void _toggleTemporaryMode() {
+    setState(() {
+      _isTemporary = !_isTemporary;
+      _temporaryConversation = null;
+      _currentConvId = _isTemporary
+          ? null
+          : (_conversations.isNotEmpty ? _conversations.first.id : null);
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(_isTemporary
+            ? (_isRtl ? 'تم تفعيل المحادثة المؤقتة' : 'Temporary chat enabled')
+            : (_isRtl
+                ? 'تم إيقاف المحادثة المؤقتة'
+                : 'Temporary chat disabled')),
+        duration: const Duration(seconds: 1),
+      ),
+    );
+  }
+
   Widget _buildTopBar(bool isWide, Color border, Color textColor) {
     return Container(
       height: 54,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: border)),
       ),
@@ -666,95 +742,45 @@ class MyApp extends StatelessWidget {
           if (!isWide)
             Builder(
               builder: (ctx) => IconButton(
+                tooltip: _isRtl ? 'القائمة' : 'Menu',
                 icon: const Icon(Icons.menu),
                 onPressed: () => Scaffold.of(ctx).openDrawer(),
               ),
             ),
-
-          // Model Selector Pill
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-            decoration: BoxDecoration(
-              color: _isDarkTheme ? const Color(0xFF2F2F2F) : const Color(0xFFF4F4F4),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: _selectedModel,
-                icon: const Icon(Icons.keyboard_arrow_down, size: 16),
-                dropdownColor: _isDarkTheme ? const Color(0xFF262626) : Colors.white,
-                items: _availableModels.map((m) {
-                  return DropdownMenuItem<String>(
-                    value: m['id'],
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          m['name']!,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                            color: textColor,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryGold.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            m['tag']!,
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primaryGold,
-                            ),
-                          ),
-                        ),
-                      ],
+          Tooltip(
+            message: 'SULY AI',
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.auto_awesome,
+                    color: AppColors.primaryGold, size: 22),
+                if (isWide) ...[
+                  const SizedBox(width: 7),
+                  Text(
+                    'SULY AI',
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.4,
                     ),
-                  );
-                }).toList(),
-                onChanged: (val) {
-                  if (val != null) {
-                    setState(() => _selectedModel = val);
-                    _saveToStorage();
-                  }
-                },
-              ),
+                  ),
+                ],
+              ],
             ),
           ),
-
           const Spacer(),
-
-          // Temporary Chat Toggle
           IconButton(
-            tooltip: _isRtl ? 'محادثة مؤقتة' : 'Temporary Chat',
+            tooltip: _isRtl ? 'محادثة مؤقتة' : 'Temporary chat',
             icon: Icon(
               _isTemporary ? Icons.history_toggle_off : Icons.history,
               color: _isTemporary ? AppColors.primaryGold : null,
               size: 20,
             ),
-            onPressed: () {
-              setState(() => _isTemporary = !_isTemporary);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    _isTemporary
-                        ? (_isRtl ? 'تم تفعيل الوضع المؤقت' : 'Temporary mode enabled')
-                        : (_isRtl ? 'تم تعطيل الوضع المؤقت' : 'Temporary mode disabled'),
-                  ),
-                  duration: const Duration(seconds: 1),
-                ),
-              );
-            },
+            onPressed: _toggleTemporaryMode,
           ),
-
-          // Canvas Toggle Button
           IconButton(
-            tooltip: _isRtl ? 'مساحة العمل Canvas' : 'Canvas Workspace',
+            tooltip: _isRtl ? 'مساحة العمل Canvas' : 'Canvas workspace',
             icon: Icon(
               Icons.splitscreen,
               color: _canvas.isOpen ? AppColors.primaryGold : null,
@@ -762,12 +788,20 @@ class MyApp extends StatelessWidget {
             ),
             onPressed: () => setState(() => _canvas.isOpen = !_canvas.isOpen),
           ),
-
-          // Voice Mode Button
           IconButton(
-            tooltip: _isRtl ? 'الوضع الصوتي' : 'Voice Mode',
+            tooltip: _isRtl ? 'الوضع الصوتي' : 'Voice mode',
             icon: const Icon(Icons.mic, color: AppColors.primaryGold, size: 20),
             onPressed: _openVoiceMode,
+          ),
+          PopupMenuButton<String>(
+            tooltip: _isRtl ? 'تغيير اللغة' : 'Change language',
+            icon: const Icon(Icons.translate, size: 20),
+            onSelected: (languageCode) =>
+                widget.onLocaleChanged?.call(languageCode),
+            itemBuilder: (context) => const [
+              PopupMenuItem<String>(value: 'ar', child: Text('العربية')),
+              PopupMenuItem<String>(value: 'en', child: Text('English')),
+            ],
           ),
         ],
       ),
@@ -786,16 +820,22 @@ class MyApp extends StatelessWidget {
               height: 52,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF3F3F3),
+                color:
+                    isDark ? const Color(0xFF2A2A2A) : const Color(0xFFF3F3F3),
                 border: Border.all(
-                  color: isDark ? const Color(0xFF383838) : const Color(0xFFE5E5E5),
+                  color: isDark
+                      ? const Color(0xFF383838)
+                      : const Color(0xFFE5E5E5),
                 ),
               ),
-              child: const Icon(Icons.auto_awesome, color: AppColors.primaryGold, size: 28),
+              child: const Icon(Icons.auto_awesome,
+                  color: AppColors.primaryGold, size: 28),
             ),
             const SizedBox(height: 16),
             Text(
-              _isRtl ? 'بماذا يمكنني مساعدتك اليوم؟' : 'What can I help with today?',
+              _isRtl
+                  ? 'بماذا يمكنني مساعدتك اليوم؟'
+                  : 'What can I help with today?',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -812,16 +852,19 @@ class MyApp extends StatelessWidget {
               alignment: WrapAlignment.center,
               children: [
                 _buildStarterCard('📱 بناء شاشة Flutter لموبايل وويب', () {
-                  _handleSendMessage('اكتب كود Flutter لشاشة دردشة سريعة ومتجاوبة مع الموبايل والويب.');
+                  _handleSendMessage(
+                      'اكتب كود Flutter لشاشة دردشة سريعة ومتجاوبة مع الموبايل والويب.');
                 }),
                 _buildStarterCard('🎨 فتح مساحة العمل Canvas لتطوير كود', () {
                   _handleSendMessage('/canvas ساعدني في كتابة تطبيق مصغر.');
                 }),
                 _buildStarterCard('📊 استيراد وفحص ملف CSV وتحليله', () {
-                  _handleSendMessage('كيف يمكنني استخدام مفتش الـ CSV لاستخراج إحصائيات دقيقة؟');
+                  _handleSendMessage(
+                      'كيف يمكنني استخدام مفتش الـ CSV لاستخراج إحصائيات دقيقة؟');
                 }),
-                _buildStarterCard('🧠 تفعيل التفكير المنطقي o1 لحل مسألة', () {
-                  _handleSendMessage('/reason حلل معمارية تطبيق فلاتر بمقاييس الأمان الحديثة.');
+                _buildStarterCard('🧠 تحليل منطقي من SULY لمسألة', () {
+                  _handleSendMessage(
+                      '/reason حلل معمارية تطبيق فلاتر بمقاييس الأمان الحديثة.');
                 }),
               ],
             ),
@@ -834,7 +877,8 @@ class MyApp extends StatelessWidget {
   Widget _buildStarterCard(String title, VoidCallback onTap) {
     final isDark = _isDarkTheme;
     final cardBg = isDark ? const Color(0xFF242424) : Colors.white;
-    final cardBorder = isDark ? const Color(0xFF333333) : const Color(0xFFE5E5E5);
+    final cardBorder =
+        isDark ? const Color(0xFF333333) : const Color(0xFFE5E5E5);
 
     return InkWell(
       onTap: onTap,
@@ -866,7 +910,8 @@ class MyApp extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment:
+            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
           if (!isUser) ...[
             Container(
@@ -874,14 +919,15 @@ class MyApp extends StatelessWidget {
               height: 32,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isDark ? const Color(0xFF262626) : const Color(0xFFEFEFEF),
+                color:
+                    isDark ? const Color(0xFF262626) : const Color(0xFFEFEFEF),
                 border: Border.all(color: border),
               ),
-              child: const Icon(Icons.auto_awesome, size: 16, color: AppColors.primaryGold),
+              child: const Icon(Icons.auto_awesome,
+                  size: 16, color: AppColors.primaryGold),
             ),
             const SizedBox(width: 10),
           ],
-
           Flexible(
             child: Container(
               padding: isUser
@@ -907,7 +953,9 @@ class MyApp extends StatelessWidget {
                         children: msg.attachments!.map((att) {
                           return ActionChip(
                             avatar: Icon(
-                              att.mimeType.contains('csv') ? Icons.table_chart : Icons.insert_drive_file,
+                              att.mimeType.contains('csv')
+                                  ? Icons.table_chart
+                                  : Icons.insert_drive_file,
                               size: 14,
                               color: AppColors.primaryGold,
                             ),
@@ -938,7 +986,6 @@ class MyApp extends StatelessWidget {
               ),
             ),
           ),
-
           if (isUser) const SizedBox(width: 4),
         ],
       ),
@@ -982,7 +1029,9 @@ class MyApp extends StatelessWidget {
                 children: _attachments.map((att) {
                   return InputChip(
                     avatar: Icon(
-                      att.mimeType.contains('csv') ? Icons.table_chart : Icons.attach_file,
+                      att.mimeType.contains('csv')
+                          ? Icons.table_chart
+                          : Icons.attach_file,
                       size: 14,
                       color: AppColors.primaryGold,
                     ),
@@ -1016,15 +1065,20 @@ class MyApp extends StatelessWidget {
                   onTap: () => setState(() => _isWebSearch = !_isWebSearch),
                   borderRadius: BorderRadius.circular(16),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: _isWebSearch ? AppColors.info.withValues(alpha: 0.2) : Colors.transparent,
+                      color: _isWebSearch
+                          ? AppColors.info.withValues(alpha: 0.2)
+                          : Colors.transparent,
                       borderRadius: BorderRadius.circular(16),
                     ),
                     child: Icon(
                       Icons.language,
                       size: 18,
-                      color: _isWebSearch ? AppColors.info : textColor.withValues(alpha: 0.6),
+                      color: _isWebSearch
+                          ? AppColors.info
+                          : textColor.withValues(alpha: 0.6),
                     ),
                   ),
                 ),
@@ -1038,10 +1092,15 @@ class MyApp extends StatelessWidget {
                     minLines: 1,
                     style: TextStyle(fontSize: 14, color: textColor),
                     decoration: InputDecoration(
-                      hintText: _isRtl ? 'اسأل أي شيء... (اكتب / للأوامر)' : 'Ask anything... (type / for commands)',
-                      hintStyle: TextStyle(fontSize: 13, color: textColor.withValues(alpha: 0.5)),
+                      hintText: _isRtl
+                          ? 'اسأل أي شيء... (اكتب / للأوامر)'
+                          : 'Ask anything... (type / for commands)',
+                      hintStyle: TextStyle(
+                          fontSize: 13,
+                          color: textColor.withValues(alpha: 0.5)),
                       border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 8),
                     ),
                     onChanged: (val) => setState(() {}),
                     onSubmitted: (val) => _handleSendMessage(val),
@@ -1061,9 +1120,12 @@ class MyApp extends StatelessWidget {
                   height: 34,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: _message.text.trim().isNotEmpty || _attachments.isNotEmpty
+                    color: _message.text.trim().isNotEmpty ||
+                            _attachments.isNotEmpty
                         ? (isDark ? Colors.white : Colors.black)
-                        : (isDark ? const Color(0xFF404040) : const Color(0xFFD6D6D6)),
+                        : (isDark
+                            ? const Color(0xFF404040)
+                            : const Color(0xFFD6D6D6)),
                   ),
                   child: IconButton(
                     padding: EdgeInsets.zero,
@@ -1082,10 +1144,11 @@ class MyApp extends StatelessWidget {
           Text(
             _isRtl
                 ? 'قد يرتكب شات جي بي تي أخطاء. تحقق من المعلومات المهمة.'
-                : 'ChatGPT can make mistakes. Check important info.',
+                : 'SULY AI can make mistakes. Check important info.',
             style: TextStyle(
               fontSize: 10.5,
-              color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+              color:
+                  isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
             ),
             textAlign: TextAlign.center,
           ),

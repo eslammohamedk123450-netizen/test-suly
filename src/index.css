@@ -11,7 +11,7 @@
     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
 
-  /* Custom scrollbar matching ChatGPT */
+  /* Custom scrollbar matching SULY */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -28,7 +28,7 @@
   }
 }
 
-/* Light / Dark Mode Color Variables matching exact ChatGPT color palette */
+/* Light / Dark Mode Color Variables matching exact SULY color palette */
 :root {
   --bg-main: #ffffff;
   --bg-sidebar: #f9f9f9;
@@ -68,56 +68,56 @@ textarea {
   field-sizing: content;
 }
 
-/* ChatGPT Typography & Markdown Styling */
-.chatgpt-prose {
+/* SULY Typography & Markdown Styling */
+.suly-prose {
   line-height: 1.7;
   color: inherit;
 }
-.chatgpt-prose p {
+.suly-prose p {
   margin-bottom: 0.85rem;
 }
-.chatgpt-prose p:last-child {
+.suly-prose p:last-child {
   margin-bottom: 0;
 }
-.chatgpt-prose h1, .chatgpt-prose h2, .chatgpt-prose h3, .chatgpt-prose h4 {
+.suly-prose h1, .suly-prose h2, .suly-prose h3, .suly-prose h4 {
   font-weight: 600;
   margin-top: 1.25rem;
   margin-bottom: 0.5rem;
   color: inherit;
 }
-.chatgpt-prose h1 { font-size: 1.5rem; }
-.chatgpt-prose h2 { font-size: 1.3rem; }
-.chatgpt-prose h3 { font-size: 1.15rem; }
-.chatgpt-prose ul {
+.suly-prose h1 { font-size: 1.5rem; }
+.suly-prose h2 { font-size: 1.3rem; }
+.suly-prose h3 { font-size: 1.15rem; }
+.suly-prose ul {
   list-style-type: disc;
   padding-inline-start: 1.5rem;
   margin-bottom: 0.85rem;
 }
-.chatgpt-prose ol {
+.suly-prose ol {
   list-style-type: decimal;
   padding-inline-start: 1.5rem;
   margin-bottom: 0.85rem;
 }
-.chatgpt-prose li {
+.suly-prose li {
   margin-bottom: 0.25rem;
 }
-.chatgpt-prose blockquote {
+.suly-prose blockquote {
   border-inline-start: 3px solid rgba(140, 140, 140, 0.4);
   padding-inline-start: 1rem;
   margin-block: 0.75rem;
   opacity: 0.85;
 }
-.chatgpt-prose table {
+.suly-prose table {
   width: 100%;
   border-collapse: collapse;
   margin-block: 1rem;
   font-size: 0.9rem;
 }
-.chatgpt-prose th, .chatgpt-prose td {
+.suly-prose th, .suly-prose td {
   padding: 8px 12px;
   border: 1px solid var(--border-subtle);
 }
-.chatgpt-prose th {
+.suly-prose th {
   background: rgba(140, 140, 140, 0.1);
   font-weight: 600;
 }
@@ -148,7 +148,7 @@ textarea {
     overflow: visible !important;
     height: auto !important;
   }
-  .chatgpt-prose {
+  .suly-prose {
     font-size: 11pt !important;
     line-height: 1.5 !important;
   }

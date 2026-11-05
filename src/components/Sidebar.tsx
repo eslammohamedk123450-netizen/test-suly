@@ -353,7 +353,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="w-5 h-5 rounded-full flex items-center justify-center text-emerald-500">
               <Sparkles size={16} />
             </div>
-            <span>ChatGPT</span>
+            <span>SULY</span>
           </button>
 
           <button
@@ -361,7 +361,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="flex items-center gap-3 w-full h-9 px-2.5 rounded-lg text-sm text-[#5d5d5d] dark:text-[#b4b4b4] hover:bg-[#ececec] dark:hover:bg-[#212121] hover:text-[#0d0d0d] dark:hover:text-[#ececec] transition-colors text-start"
           >
             <Compass size={17} className="text-[#8e8e8e]" />
-            <span>{isRtl ? 'استكشف النماذج والمساعدين' : 'Explore GPTs'}</span>
+            <span>{isRtl ? 'استكشف النماذج والمساعدين' : 'Explore SULY assistants'}</span>
           </button>
         </div>
 
@@ -584,7 +584,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   className="flex items-center gap-3 w-full px-3 py-2.5 hover:bg-neutral-100 dark:hover:bg-[#2f2f2f] transition-colors text-start"
                 >
                   <Sliders size={15} className="text-[#8e8e8e]" />
-                  <span>{isRtl ? 'تخصيص ChatGPT' : 'Customize ChatGPT'}</span>
+                  <span>{isRtl ? 'تخصيص SULY' : 'Customize SULY'}</span>
                 </button>
 
                 <button

@@ -58,7 +58,7 @@ class _SulyAiAppState extends State<SulyAiApp> {
   Widget build(BuildContext context) {
     final fontFamily = _locale.languageCode == 'ar' ? 'Tajawal' : 'Inter';
     return MaterialApp(
-      title: 'ChatGPT - SULY AI',
+      title: 'SULY AI',
       debugShowCheckedModeBanner: false,
       themeMode: _isDark ? ThemeMode.dark : ThemeMode.light,
       theme: AppTheme.light(fontFamily: fontFamily),
@@ -67,6 +67,7 @@ class _SulyAiAppState extends State<SulyAiApp> {
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       home: FunctionalChatScreen(
+        languageCode: _locale.languageCode,
         onLocaleChanged: _changeLocale,
       ),
     );

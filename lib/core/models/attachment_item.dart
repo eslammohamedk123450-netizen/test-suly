@@ -7,6 +7,7 @@ class AttachmentItem {
   final int? size;
   final String type; // 'image' | 'file'
   final String? textContent;
+  int? serverFileId;
 
   AttachmentItem({
     required this.id,
@@ -16,6 +17,7 @@ class AttachmentItem {
     this.size,
     required this.type,
     this.textContent,
+    this.serverFileId,
   });
 
   Map<String, dynamic> toJson() => {
@@ -26,15 +28,18 @@ class AttachmentItem {
         'size': size,
         'type': type,
         'textContent': textContent,
+        'serverFileId': serverFileId,
       };
 
   factory AttachmentItem.fromJson(Map<String, dynamic> json) => AttachmentItem(
-        id: json['id'] as String? ?? 'att-${DateTime.now().millisecondsSinceEpoch}',
+        id: json['id'] as String? ??
+            'att-${DateTime.now().millisecondsSinceEpoch}',
         name: json['name'] as String? ?? 'file',
         mimeType: json['mimeType'] as String? ?? 'application/octet-stream',
         data: json['data'] as String? ?? '',
         size: json['size'] as int?,
         type: json['type'] as String? ?? 'file',
         textContent: json['textContent'] as String?,
+        serverFileId: json['serverFileId'] as int?,
       );
 }

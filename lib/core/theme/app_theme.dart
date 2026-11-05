@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'app_colors.dart';
-import 'app_radii.dart';
 import 'app_spacing.dart';
 
-/// ChatGPT Theme Definitions
+/// SULY AI theme definitions.
 abstract final class AppTheme {
   AppTheme._();
 
@@ -55,7 +54,8 @@ abstract final class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadii.md),
-          borderSide: const BorderSide(color: AppColors.primaryGold, width: 1.4),
+          borderSide:
+              const BorderSide(color: AppColors.primaryGold, width: 1.4),
         ),
       ),
     );
@@ -109,7 +109,8 @@ abstract final class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadii.md),
-          borderSide: const BorderSide(color: AppColors.primaryGold, width: 1.4),
+          borderSide:
+              const BorderSide(color: AppColors.primaryGold, width: 1.4),
         ),
       ),
     );

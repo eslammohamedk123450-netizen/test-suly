@@ -52,7 +52,7 @@ class MessageBubble extends StatelessWidget {
                   padding: const EdgeInsets.all(AppSpacing.md),
                   decoration: BoxDecoration(
                     color: isUser
-                        ? AppColors.primaryGold.withOpacity(0.14)
+                        ? AppColors.primaryGold.withValues(alpha: 0.14)
                         : AppColors.surfaceSecondary,
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(16),
@@ -62,7 +62,7 @@ class MessageBubble extends StatelessWidget {
                     ),
                     border: Border.all(
                       color: isUser
-                          ? AppColors.primaryGold.withOpacity(0.4)
+                          ? AppColors.primaryGold.withValues(alpha: 0.4)
                           : AppColors.border,
                       width: 1,
                     ),
@@ -76,10 +76,10 @@ class MessageBubble extends StatelessWidget {
                       ),
                       if (isSending) ...[
                         const SizedBox(height: AppSpacing.xs),
-                        SizedBox(
+                        const SizedBox(
                           height: 16,
                           width: 16,
-                          child: CircularProgressIndicator(
+                          child: const CircularProgressIndicator(
                             strokeWidth: 2,
                             color: AppColors.primaryGold,
                           ),
@@ -96,7 +96,7 @@ class MessageBubble extends StatelessWidget {
                       _formatTime(message.timestamp),
                       style: TextStyle(
                         fontSize: 11,
-                        color: AppColors.textMuted.withOpacity(0.7),
+                        color: AppColors.textMuted.withValues(alpha: 0.7),
                       ),
                     ),
                     if (!isUser && !isSending) ...[
@@ -163,9 +163,9 @@ class _CopyButton extends StatelessWidget {
     return InkWell(
       onTap: onPressed,
       borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Icon(
+      child: const Padding(
+        padding: EdgeInsets.all(6),
+        child: const Icon(
           Icons.content_copy,
           size: 16,
           color: AppColors.textMuted,
@@ -185,9 +185,9 @@ class _RegenerateButton extends StatelessWidget {
     return InkWell(
       onTap: onPressed,
       borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Icon(
+      child: const Padding(
+        padding: EdgeInsets.all(6),
+        child: const Icon(
           Icons.refresh,
           size: 16,
           color: AppColors.primaryGold,

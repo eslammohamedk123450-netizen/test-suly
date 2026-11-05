@@ -3,7 +3,7 @@ import '../../../../core/models/folder.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/conversation.dart';
 
-/// الشريط الجانبي والقائمة المنزلقة لشات جي بي تي (Sidebar / Drawer)
+/// الشريط الجانبي والقائمة المنزلقة لتطبيق SULY AI.
 class ChatDrawer extends StatefulWidget {
   const ChatDrawer({
     super.key,
@@ -65,7 +65,9 @@ class _ChatDrawerState extends State<ChatDrawer> {
           controller: controller,
           autofocus: true,
           decoration: InputDecoration(
-            hintText: widget.isRtl ? 'اسم المجلد أو المشروع' : 'Folder / Project Name',
+            hintText: widget.isRtl
+                ? 'اسم المجلد أو المشروع'
+                : 'Folder / Project Name',
           ),
         ),
         actions: [
@@ -145,7 +147,8 @@ class _ChatDrawerState extends State<ChatDrawer> {
               },
               child: Row(
                 children: [
-                  const Icon(Icons.folder, size: 18, color: AppColors.primaryGold),
+                  const Icon(Icons.folder,
+                      size: 18, color: AppColors.primaryGold),
                   const SizedBox(width: 8),
                   Text(f.name),
                 ],
@@ -175,225 +178,257 @@ class _ChatDrawerState extends State<ChatDrawer> {
 
     return Container(
       width: 280,
-      color: bg,
-      child: SafeArea(
-        child: Column(
-          children: [
-            // Top Bar: New Chat
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-              child: ElevatedButton.icon(
-                onPressed: widget.onNewChat,
-                icon: const Icon(Icons.add, size: 18),
-                label: Text(
-                  widget.isRtl ? 'محادثة جديدة' : 'New chat',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 44),
-                  backgroundColor: isDark ? const Color(0xFF242424) : Colors.white,
-                  foregroundColor: textColor,
-                  elevation: 0,
-                  side: BorderSide(color: border),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-              ),
-            ),
-
-            // Search Bar
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              child: TextField(
-                controller: _searchController,
-                onChanged: (val) => setState(() => _search = val),
-                decoration: InputDecoration(
-                  hintText: widget.isRtl ? 'بحث في المحادثات...' : 'Search chats...',
-                  prefixIcon: const Icon(Icons.search, size: 16),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  isDense: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: border),
+      child: Material(
+        color: bg,
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Top Bar: New Chat
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                child: ElevatedButton.icon(
+                  onPressed: widget.onNewChat,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: Text(
+                    widget.isRtl ? 'محادثة جديدة' : 'New chat',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size(double.infinity, 44),
+                    backgroundColor:
+                        isDark ? const Color(0xFF242424) : Colors.white,
+                    foregroundColor: textColor,
+                    elevation: 0,
+                    side: BorderSide(color: border),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
                   ),
                 ),
               ),
-            ),
 
-            // Folders Header & Action
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    widget.isRtl ? 'المجلدات والمشاريع' : 'Folders & Projects',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+              // Search Bar
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (val) => setState(() => _search = val),
+                  decoration: InputDecoration(
+                    hintText: widget.isRtl
+                        ? 'بحث في المحادثات...'
+                        : 'Search chats...',
+                    prefixIcon: const Icon(Icons.search, size: 16),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    isDense: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: border),
                     ),
                   ),
-                  InkWell(
-                    onTap: _showNewFolderDialog,
-                    borderRadius: BorderRadius.circular(4),
-                    child: Padding(
-                      padding: const EdgeInsets.all(2),
-                      child: Icon(
-                        Icons.create_new_folder_outlined,
-                        size: 16,
-                        color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
 
-            // Folders List
-            if (widget.folders.isNotEmpty)
-              ...widget.folders.map((folder) {
-                final isExpanded = _expandedFolders.contains(folder.id);
-                final folderChats = filtered.where((c) => c.folderId == folder.id).toList();
-
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
+              // Folders Header & Action
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    ListTile(
-                      dense: true,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14),
-                      leading: Icon(
-                        isExpanded ? Icons.folder_open : Icons.folder,
-                        size: 17,
-                        color: AppColors.primaryGold,
+                    Text(
+                      widget.isRtl
+                          ? 'المجلدات والمشاريع'
+                          : 'Folders & Projects',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: isDark
+                            ? AppColors.darkTextMuted
+                            : AppColors.lightTextMuted,
                       ),
-                      title: Text(
-                        folder.name,
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                        overflow: TextOverflow.ellipsis,
+                    ),
+                    InkWell(
+                      onTap: _showNewFolderDialog,
+                      borderRadius: BorderRadius.circular(4),
+                      child: Padding(
+                        padding: const EdgeInsets.all(2),
+                        child: Icon(
+                          Icons.create_new_folder_outlined,
+                          size: 16,
+                          color: isDark
+                              ? AppColors.darkTextMuted
+                              : AppColors.lightTextMuted,
+                        ),
                       ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '${folderChats.length}',
+                    ),
+                  ],
+                ),
+              ),
+
+              // Folders List
+              if (widget.folders.isNotEmpty)
+                ...widget.folders.map((folder) {
+                  final isExpanded = _expandedFolders.contains(folder.id);
+                  final folderChats =
+                      filtered.where((c) => c.folderId == folder.id).toList();
+
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ListTile(
+                        dense: true,
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 14),
+                        leading: Icon(
+                          isExpanded ? Icons.folder_open : Icons.folder,
+                          size: 17,
+                          color: AppColors.primaryGold,
+                        ),
+                        title: Text(
+                          folder.name,
+                          style: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${folderChats.length}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isDark
+                                    ? AppColors.darkTextMuted
+                                    : AppColors.lightTextMuted,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              isExpanded
+                                  ? Icons.expand_less
+                                  : Icons.expand_more,
+                              size: 16,
+                            ),
+                          ],
+                        ),
+                        onTap: () {
+                          setState(() {
+                            if (isExpanded) {
+                              _expandedFolders.remove(folder.id);
+                            } else {
+                              _expandedFolders.add(folder.id);
+                            }
+                          });
+                        },
+                      ),
+                      if (isExpanded)
+                        ...folderChats.map((c) => _buildChatItem(
+                            c, textColor, isDark, border,
+                            indent: true)),
+                    ],
+                  );
+                }),
+
+              const Divider(height: 16),
+
+              // Chat Conversations List
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  children: [
+                    if (pinned.isNotEmpty) ...[
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+                        child: Text(
+                          widget.isRtl ? 'المثبتة' : 'Pinned',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isDark
+                                ? AppColors.darkTextMuted
+                                : AppColors.lightTextMuted,
+                          ),
+                        ),
+                      ),
+                      ...pinned.map(
+                          (c) => _buildChatItem(c, textColor, isDark, border)),
+                      const SizedBox(height: 8),
+                    ],
+                    if (recent.isNotEmpty) ...[
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+                        child: Text(
+                          widget.isRtl ? 'المحادثات الأخيرة' : 'Recent Chats',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: isDark
+                                ? AppColors.darkTextMuted
+                                : AppColors.lightTextMuted,
+                          ),
+                        ),
+                      ),
+                      ...recent.map(
+                          (c) => _buildChatItem(c, textColor, isDark, border)),
+                    ],
+                    if (filtered.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Center(
+                          child: Text(
+                            widget.isRtl ? 'لا توجد محادثات' : 'No chats found',
                             style: TextStyle(
-                              fontSize: 11,
-                              color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                              fontSize: 12,
+                              color: isDark
+                                  ? AppColors.darkTextMuted
+                                  : AppColors.lightTextMuted,
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            isExpanded ? Icons.expand_less : Icons.expand_more,
-                            size: 16,
-                          ),
-                        ],
-                      ),
-                      onTap: () {
-                        setState(() {
-                          if (isExpanded) {
-                            _expandedFolders.remove(folder.id);
-                          } else {
-                            _expandedFolders.add(folder.id);
-                          }
-                        });
-                      },
-                    ),
-                    if (isExpanded)
-                      ...folderChats.map((c) => _buildChatItem(c, textColor, isDark, border, indent: true)),
-                  ],
-                );
-              }),
-
-            const Divider(height: 16),
-
-            // Chat Conversations List
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                children: [
-                  if (pinned.isNotEmpty) ...[
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-                      child: Text(
-                        widget.isRtl ? 'المثبتة' : 'Pinned',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
                         ),
                       ),
-                    ),
-                    ...pinned.map((c) => _buildChatItem(c, textColor, isDark, border)),
-                    const SizedBox(height: 8),
                   ],
-                  if (recent.isNotEmpty) ...[
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
-                      child: Text(
-                        widget.isRtl ? 'المحادثات الأخيرة' : 'Recent Chats',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
-                        ),
-                      ),
-                    ),
-                    ...recent.map((c) => _buildChatItem(c, textColor, isDark, border)),
-                  ],
-                  if (filtered.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Center(
-                        child: Text(
-                          widget.isRtl ? 'لا توجد محادثات' : 'No chats found',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+                ),
               ),
-            ),
 
-            const Divider(height: 1),
+              const Divider(height: 1),
 
-            // Bottom Profile / Settings Actions
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              child: Column(
-                children: [
-                  // Memory Log button
-                  ListTile(
-                    dense: true,
-                    leading: const Icon(Icons.psychology, size: 18, color: AppColors.primaryGold),
-                    title: Text(
-                      widget.isRtl ? 'سجل الذاكرة الذكية' : 'ChatGPT Memory',
-                      style: const TextStyle(fontSize: 13),
+              // Bottom Profile / Settings Actions
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Column(
+                  children: [
+                    // Memory Log button
+                    ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.psychology,
+                          size: 18, color: AppColors.primaryGold),
+                      title: Text(
+                        widget.isRtl ? 'سجل الذاكرة الذكية' : 'SULY Memory',
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      onTap: widget.onOpenMemory,
                     ),
-                    onTap: widget.onOpenMemory,
-                  ),
 
-                  // Theme Switcher
-                  ListTile(
-                    dense: true,
-                    leading: Icon(
-                      widget.isDarkTheme ? Icons.light_mode : Icons.dark_mode,
-                      size: 18,
+                    // Theme Switcher
+                    ListTile(
+                      dense: true,
+                      leading: Icon(
+                        widget.isDarkTheme ? Icons.light_mode : Icons.dark_mode,
+                        size: 18,
+                      ),
+                      title: Text(
+                        widget.isDarkTheme
+                            ? (widget.isRtl ? 'الوضع الفاتح' : 'Light Mode')
+                            : (widget.isRtl ? 'الوضع الداكن' : 'Dark Mode'),
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      onTap: widget.onToggleTheme,
                     ),
-                    title: Text(
-                      widget.isDarkTheme
-                          ? (widget.isRtl ? 'الوضع الفاتح' : 'Light Mode')
-                          : (widget.isRtl ? 'الوضع الداكن' : 'Dark Mode'),
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                    onTap: widget.onToggleTheme,
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -423,7 +458,9 @@ class _ChatDrawerState extends State<ChatDrawer> {
         leading: Icon(
           c.isPinned ? Icons.push_pin : Icons.chat_bubble_outline,
           size: 15,
-          color: c.isPinned ? AppColors.primaryGold : (isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted),
+          color: c.isPinned
+              ? AppColors.primaryGold
+              : (isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted),
         ),
         title: Text(
           c.title,
@@ -452,9 +489,12 @@ class _ChatDrawerState extends State<ChatDrawer> {
               value: 'pin',
               child: Row(
                 children: [
-                  Icon(c.isPinned ? Icons.pin_drop_outlined : Icons.push_pin, size: 16),
+                  Icon(c.isPinned ? Icons.pin_drop_outlined : Icons.push_pin,
+                      size: 16),
                   const SizedBox(width: 8),
-                  Text(c.isPinned ? (widget.isRtl ? 'إلغاء التثبيت' : 'Unpin') : (widget.isRtl ? 'تثبيت' : 'Pin')),
+                  Text(c.isPinned
+                      ? (widget.isRtl ? 'إلغاء التثبيت' : 'Unpin')
+                      : (widget.isRtl ? 'تثبيت' : 'Pin')),
                 ],
               ),
             ),
@@ -484,7 +524,8 @@ class _ChatDrawerState extends State<ChatDrawer> {
                 children: [
                   const Icon(Icons.delete, size: 16, color: AppColors.error),
                   const SizedBox(width: 8),
-                  Text(widget.isRtl ? 'حذف' : 'Delete', style: const TextStyle(color: AppColors.error)),
+                  Text(widget.isRtl ? 'حذف' : 'Delete',
+                      style: const TextStyle(color: AppColors.error)),
                 ],
               ),
             ),

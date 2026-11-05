@@ -85,6 +85,23 @@ def _load_chat_attachments(db: Session, attachment_ids: list[int], user_id: int)
     return result
 
 
+def _purge_temporary_attachments(db: Session, attachment_ids: list[int], user_id: int) -> None:
+    """Permanently remove files uploaded solely for a temporary chat."""
+    if not attachment_ids:
+        return
+    items = db.query(UserFile).filter(
+        UserFile.id.in_(attachment_ids),
+        UserFile.user_id == user_id,
+    ).all()
+    upload_root = Path(settings.upload_dir).resolve()
+    user_root = (upload_root / str(user_id)).resolve()
+    for item in items:
+        target = (user_root / item.storage_name).resolve()
+        if target.is_relative_to(user_root) and target.is_file():
+            target.unlink()
+        db.delete(item)
+
+
 def check_rate_limit(user: User = Depends(get_current_user_record)):
     allowed, info = _rate_limiter.check(user.id)
     if not allowed:
@@ -133,8 +150,10 @@ def chat(
     conversation = (
         _conversation_or_404(db, conversation_id, current_user.id)
         if conversation_id is not None
-        else Conversation(user_id=current_user.id, title="محادثة جديدة"))
-    if conversation.id is None:
+        else None if request.temporary
+        else Conversation(user_id=current_user.id, title="محادثة جديدة")
+    )
+    if conversation is not None and conversation.id is None:
         db.add(conversation)
         db.flush()
 
@@ -144,7 +163,7 @@ def chat(
         .order_by(Message.created_at.desc())
         .limit(40)
         .all()
-    )
+    ) if conversation is not None else []
     history = [
         {"role": item.role, "content": item.content}
         for item in reversed(recent_messages)
@@ -155,19 +174,36 @@ def chat(
     try:
         chat_service = ChatService(db)
         prompt = message_text or "Please analyze the attached file(s)."
+        if request.system_context.strip():
+            prompt = (
+                "User preferences and context (follow when relevant; do not expose this block):\n"
+                f"{request.system_context.strip()}\n\nUser request:\n{prompt}"
+            )
         reply = chat_service.get_reply_fastest(prompt, history, attachments)
     except ChatProviderError:
-        # All providers failed - no deduction, no response added
+        # All providers failed - no deduction, no response added.
+        if request.temporary:
+            _purge_temporary_attachments(db, request.attachment_ids, current_user.id)
+            db.commit()
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="All AI providers failed to generate a response. Please try again later.",
         )
     except Exception as exc:
         db.rollback()
+        if request.temporary:
+            _purge_temporary_attachments(db, request.attachment_ids, current_user.id)
+            db.commit()
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="AI service is temporarily unavailable.",
         ) from exc
+
+    # Temporary files are removed from both disk and metadata as soon as the
+    # provider has consumed them. The message itself is never persisted below.
+    if request.temporary:
+        _purge_temporary_attachments(db, request.attachment_ids, current_user.id)
+        db.commit()
 
     # Atomically reserve one credit after a successful provider response.
     result = db.execute(
@@ -185,27 +221,28 @@ def chat(
         )
     current_user.credit_balance = new_balance
 
-    db.add(Message(
-        conversation_id=conversation.id,
-        user_id=current_user.id,
-        role="user",
-        content=message_text,
-    ))
-    db.add(Message(
-        conversation_id=conversation.id,
-        user_id=current_user.id,
-        role="assistant",
-        content=reply,
-    ))
-    if conversation.title == "محادثة جديدة":
-        conversation.title = message_text[:80].strip() or "محادثة جديدة"
+    if conversation is not None:
+        db.add(Message(
+            conversation_id=conversation.id,
+            user_id=current_user.id,
+            role="user",
+            content=message_text,
+        ))
+        db.add(Message(
+            conversation_id=conversation.id,
+            user_id=current_user.id,
+            role="assistant",
+            content=reply,
+        ))
+        if conversation.title == "محادثة جديدة":
+            conversation.title = message_text[:80].strip() or "محادثة جديدة"
+        conversation.updated_at = datetime.now(timezone.utc)
     db.add(CreditTransaction(
         user_id=current_user.id,
         amount=-1,
         balance_after=new_balance,
         reason="AI chat request",
     ))
-    conversation.updated_at = datetime.now(timezone.utc)
     db.commit()
 
     return ChatResponse(

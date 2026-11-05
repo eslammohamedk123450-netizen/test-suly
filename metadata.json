@@ -1,6 +1,6 @@
 {
-  "name": "ChatGPT",
-  "description": "ChatGPT - A modern, pixel-perfect conversational AI interface with custom models, voice mode, multimodal chat, and full ChatGPT UI controls.",
+  "name": "SULY AI",
+  "description": "SULY AI — More Than AI. Your Intelligent Partner.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

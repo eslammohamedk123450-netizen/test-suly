@@ -94,7 +94,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(conversations, null, 2));
     const downloadAnchor = document.createElement('a');
     downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute('download', `chatgpt_export_${new Date().toISOString().slice(0, 10)}.json`);
+    downloadAnchor.setAttribute('download', `suly_export_${new Date().toISOString().slice(0, 10)}.json`);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
@@ -375,8 +375,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div>
                   <label className="block text-xs font-semibold mb-1">
                     {isRtl
-                      ? 'ما الذي ترغب أن يعرفه ChatGPT عنك لتقديم إجابات أفضل؟'
-                      : 'What would you like ChatGPT to know about you to provide better responses?'}
+                      ? 'ما الذي ترغب أن يعرفه SULY عنك لتقديم إجابات أفضل؟'
+                      : 'What would you like SULY to know about you to provide better responses?'}
                   </label>
                   <p className="text-[11px] text-[#8e8e8e] mb-2">
                     {isRtl
@@ -395,8 +395,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div>
                   <label className="block text-xs font-semibold mb-1">
                     {isRtl
-                      ? 'كيف تود أن يستجيب ChatGPT لأسئلتك؟'
-                      : 'How would you like ChatGPT to respond?'}
+                      ? 'كيف تود أن يستجيب SULY لأسئلتك؟'
+                      : 'How would you like SULY to respond?'}
                   </label>
                   <p className="text-[11px] text-[#8e8e8e] mb-2">
                     {isRtl
@@ -442,8 +442,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                     <div className="text-[11px] text-[#8e8e8e] mt-0.5">
                       {isRtl
-                        ? 'يسمح لـ ChatGPT بتذكر التفاصيل والتفضيلات المهمة عبر كافة المحادثات.'
-                        : 'Allows ChatGPT to remember details across chats to provide customized responses.'}
+                        ? 'يسمح لـ SULY بتذكر التفاصيل والتفضيلات المهمة عبر كافة المحادثات.'
+                        : 'Allows SULY to remember details across chats to provide customized responses.'}
                     </div>
                   </div>
                   <input
@@ -460,7 +460,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     type="text"
                     value={newMemoryText}
                     onChange={(e) => setNewMemoryText(e.target.value)}
-                    placeholder={isRtl ? 'أضف معلومة جديدة ليتذكرها ChatGPT...' : 'Add a detail for ChatGPT to remember...'}
+                    placeholder={isRtl ? 'أضف معلومة جديدة ليتذكرها SULY...' : 'Add a detail for SULY to remember...'}
                     className="flex-1 px-3 py-2 rounded-xl border border-neutral-300 dark:border-white/10 bg-transparent text-xs focus:outline-none focus:border-purple-500"
                   />
                   <button

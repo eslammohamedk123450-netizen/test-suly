@@ -11,30 +11,36 @@ void main() {
     FlutterSecureStorage.setMockInitialValues({});
   });
 
-  testWidgets('SULY opens in Arabic and routes to the existing chat', (
+  testWidgets('SULY opens in Arabic and requires sign-in before sending', (
     WidgetTester tester,
   ) async {
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     await tester.pumpWidget(const SulyAiApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('SULY AI'), findsWidgets);
-    expect(find.text('إنجاز أوضح، من مكان واحد.'), findsOneWidget);
-    expect(
-        find.text('More Than AI. Your Intelligent Partner.'), findsOneWidget);
-    expect(find.text('لا توجد مهام تجريبية أو سجل جاهز هنا.'), findsOneWidget);
+    expect(find.byTooltip('SULY AI'), findsOneWidget);
+    final heading = find.text('بماذا يمكنني مساعدتك اليوم؟');
+    expect(heading, findsOneWidget);
+    expect(Directionality.of(tester.element(heading)), TextDirection.rtl);
+    expect(find.byTooltip('تغيير اللغة'), findsOneWidget);
 
-    final startConversation = find.text('ابدأ محادثة');
-    await tester.ensureVisible(startConversation);
+    await tester.enterText(find.byType(TextField).first, 'مرحبًا');
+    await tester.tap(find.byIcon(Icons.arrow_upward));
     await tester.pumpAndSettle();
-    await tester.tap(startConversation);
-    await tester.pumpAndSettle();
-
-    expect(find.text('سجّل الدخول لبدء المحادثة'), findsOneWidget);
+    expect(find.text('سجّل الدخول للمتابعة'), findsOneWidget);
   });
 
   testWidgets('the language menu switches content and direction to English', (
     WidgetTester tester,
   ) async {
+    tester.view.physicalSize = const Size(400, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(const SulyAiApp());
     await tester.pumpAndSettle();
 
@@ -43,9 +49,9 @@ void main() {
     await tester.tap(find.text('English'));
     await tester.pumpAndSettle();
 
-    final heading = find.text('A clearer way to get things done.');
+    final heading = find.text('What can I help with today?');
     expect(heading, findsOneWidget);
     expect(Directionality.of(tester.element(heading)), TextDirection.ltr);
-    expect(find.text('Start a conversation'), findsOneWidget);
+    expect(find.byTooltip('Change language'), findsOneWidget);
   });
 }

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/models/memory_item.dart';
 import '../../../../core/theme/app_colors.dart';
 
-/// نافذة إدارة سجل ذاكرة شات جي بي تي (ChatGPT Memory Log)
+/// نافذة إدارة سجل ذاكرة SULY AI.
 class MemorySettingsDialog extends StatefulWidget {
   const MemorySettingsDialog({
     super.key,
@@ -66,7 +66,7 @@ class _MemorySettingsDialogState extends State<MemorySettingsDialog> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    widget.isRtl ? 'سجل ذاكرة شات جي بي تي (Memory)' : 'ChatGPT Memory Log',
+                    widget.isRtl ? 'سجل ذاكرة SULY (Memory)' : 'SULY Memory Log',
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -87,14 +87,14 @@ class _MemorySettingsDialogState extends State<MemorySettingsDialog> {
               ),
               subtitle: Text(
                 widget.isRtl
-                    ? 'يتذكر شات جي بي تي تفضيلاتك وتفاصيلك المحددة عبر جميع المحادثات.'
-                    : 'ChatGPT will remember details and preferences across your chats.',
+                    ? 'تستخدم SULY تفضيلاتك وتفاصيلك المحفوظة لتحسين الردود.'
+                    : 'SULY uses your saved preferences to tailor responses.',
                 style: TextStyle(
                   fontSize: 12,
                   color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
                 ),
               ),
-              activeColor: AppColors.primaryGold,
+              activeThumbColor: AppColors.primaryGold,
               value: widget.memoryEnabled,
               onChanged: widget.onToggleMemory,
             ),

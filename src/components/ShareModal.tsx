@@ -38,9 +38,9 @@ export const ShareModal: React.FC<ShareModalProps> = ({
 
   // Export as Markdown
   const handleExportMarkdown = () => {
-    let md = `# ${conversation.title}\n\n*Exported from ChatGPT on ${new Date().toLocaleDateString()}*\n\n---\n\n`;
+    let md = `# ${conversation.title}\n\n*Exported from SULY on ${new Date().toLocaleDateString()}*\n\n---\n\n`;
     conversation.messages.forEach((msg) => {
-      const roleName = msg.role === 'user' ? '👤 User' : '🤖 ChatGPT';
+      const roleName = msg.role === 'user' ? '👤 User' : '🤖 SULY';
       md += `### ${roleName}\n\n${msg.content}\n\n---\n\n`;
     });
 
@@ -59,7 +59,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   const handleExportText = () => {
     let txt = `${conversation.title}\n\n`;
     conversation.messages.forEach((msg) => {
-      const roleName = msg.role === 'user' ? 'User' : 'ChatGPT';
+      const roleName = msg.role === 'user' ? 'User' : 'SULY';
       txt += `[${roleName}]:\n${msg.content}\n\n----------------------------\n\n`;
     });
 

@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 /// نموذج مجلد لتنظيم المحادثات والمشاريع
 class Folder {
   final String id;

@@ -27,49 +27,56 @@ if (apiKey) {
   });
 }
 
-// Available ChatGPT Models configuration
-const CHATGPT_MODELS = [
+// Available SULY Models configuration
+const SULY_MODELS = [
   {
-    id: 'gpt-4o',
-    name: 'GPT-4o',
-    description: 'Our most intelligent and versatile model for coding, writing, and deep analysis.',
+    id: 'suly-pro',
+    name: 'SULY Pro',
+    description: 'General-purpose assistance for writing, coding, and analysis.',
     tag: 'Flagship',
     icon: 'sparkle',
-    capabilities: ['Web browsing', 'DALL·E Image generation', 'Code execution', 'File analysis'],
+    capabilities: ['Text generation', 'Code and writing assistance', 'File input'],
   },
   {
-    id: 'o1',
-    name: 'o1',
-    description: 'Reasoning model designed to solve hard problems in STEM, logic, and architecture.',
+    id: 'suly-reasoning',
+    name: 'SULY Reasoning',
+    description: 'A reasoning-focused assistant for STEM, logic, and architecture topics.',
     tag: 'Reasoning',
     icon: 'brain',
-    capabilities: ['Step-by-step thinking', 'Deep math & science', 'Architecture design'],
+    capabilities: ['Complex problem solving', 'Math and science assistance', 'Architecture discussion'],
   },
   {
-    id: 'gpt-4o-mini',
-    name: 'GPT-4o mini',
-    description: 'Fast, lightweight model for fast answers and routine everyday tasks.',
+    id: 'suly-fast',
+    name: 'SULY Fast',
+    description: 'A fast assistant for routine questions and everyday tasks.',
     tag: 'Fast',
     icon: 'zap',
-    capabilities: ['Instant answers', 'Lightweight tasks', 'High speed'],
+    capabilities: ['Quick text responses', 'Everyday tasks', 'Code assistance'],
   },
   {
-    id: 'o3-mini',
-    name: 'o3-mini',
-    description: 'Fast STEM-focused reasoning model with low latency and precise logic.',
+    id: 'suly-stem',
+    name: 'SULY STEM',
+    description: 'A focused assistant for math, algorithms, and STEM topics.',
     tag: 'STEM Reasoning',
     icon: 'cpu',
-    capabilities: ['Rapid math', 'Algorithm optimization', 'Deep logic'],
+    capabilities: ['Math and STEM assistance', 'Algorithms', 'Logical problem solving'],
   },
 ];
 
+const SULY_GEMINI_MODELS: Record<string, string> = {
+  'suly-pro': process.env.SULY_PRO_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-pro',
+  'suly-reasoning': process.env.SULY_REASONING_MODEL || 'gemini-2.5-pro',
+  'suly-fast': process.env.SULY_FAST_MODEL || 'gemini-2.5-flash',
+  'suly-stem': process.env.SULY_STEM_MODEL || 'gemini-2.5-flash',
+};
+
 app.get('/api/models', (_req: Request, res: Response) => {
-  res.json({ models: CHATGPT_MODELS });
+  res.json({ models: SULY_MODELS });
 });
 
 // Stream chat completion endpoint
 app.post('/api/chat', async (req: Request, res: Response) => {
-  const { messages, model = 'gpt-4o', webSearch = false, reasoning = false, customInstructions = '', memories = [] } = req.body;
+  const { messages, model = 'suly-pro', webSearch = false, reasoning = false, customInstructions = '', memories = [], language = 'en' } = req.body;
 
   if (!Array.isArray(messages) || messages.length === 0) {
     res.status(400).json({ error: 'Messages array is required.' });
@@ -87,13 +94,16 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     res.write(`data: ${JSON.stringify(data)}\n\n`);
   };
 
-  const isReasoning = reasoning || model === 'o1' || model === 'o3-mini';
+  const isReasoning = reasoning || model === 'suly-reasoning' || model === 'suly-stem';
 
   // Prepare system instructions
-  let systemInstruction = `You are ChatGPT, a large language model trained by OpenAI.
+  let systemInstruction = `You are SULY AI, a helpful assistant in this application. Do not claim to be trained by another provider or to be a different model.
 You provide helpful, direct, articulate, insightful, and truthful answers with impeccable formatting.
 Format your responses using Markdown: use headings, bold text, bulleted/numbered lists, tables, and backtick code blocks with explicit language tags (e.g. \`\`\`python, \`\`\`javascript, \`\`\`html) when providing code.
 Respond naturally in the same language the user writes (e.g., Arabic if Arabic, English if English).`;
+  if (isReasoning) {
+    systemInstruction += '\n\nFor complex tasks, work through the problem carefully and provide a concise rationale or summary, without exposing hidden chain-of-thought.';
+  }
 
   if (customInstructions && customInstructions.trim()) {
     systemInstruction += `\n\nUser Custom Instructions:\n${customInstructions}`;
@@ -103,51 +113,20 @@ Respond naturally in the same language the user writes (e.g., Arabic if Arabic, 
     systemInstruction += `\n\nSaved User Memory:\n${memories.map((m: any) => `- ${m.content || m}`).join('\n')}`;
   }
 
-  // If Gemini API Key is missing, provide a friendly simulated response stream
   if (!ai) {
-    const lastUserMessage = messages[messages.length - 1]?.content || 'Hello';
-    const sampleThoughts = [
-      'Analyzing user prompt and intent...',
-      'Synthesizing key knowledge points...',
-      'Structuring formatted response with markdown and code snippets...',
-    ];
-
-    if (isReasoning) {
-      for (const thought of sampleThoughts) {
-        sendEvent({ type: 'thought', text: thought + '\n' });
-        await new Promise((resolve) => setTimeout(resolve, 300));
-      }
-    }
-
-    const fallbackResponse = `مرحبًا بك في **ChatGPT**! 👋
-
-أنا هنا لمساعدتك في أي سؤال، كتابة وتصحيح الأكواد، صياغة المقالات، الترجمة، حل المعادلات، والتفكير المنطقي.
-
-لقد سألت عن: "${lastUserMessage}"
-
-> 💡 **ملاحظة:** الواجهة تعمل بكامل طاقتها وتصميم ChatGPT الأصلي مع القائمة الجانبية، سجل المحادثات، تبديل النماذج (GPT-4o, o1, GPT-4o mini)، وضع الصوت، والإعدادات. يمكنك ربط مفتاح Gemini API في لوحة **Settings > Secrets** لتشغيل الاستجابات الحية من النماذج الكبيرة!
-
-هل تريد مني مساعدتك في مهمة محددة الآن؟`;
-
-    // Stream out words with realistic typing speed
-    const words = fallbackResponse.split(' ');
-    for (let i = 0; i < words.length; i++) {
-      sendEvent({ type: 'content', text: (i === 0 ? '' : ' ') + words[i] });
-      await new Promise((resolve) => setTimeout(resolve, 35));
-    }
-
-    sendEvent({ type: 'done', finishReason: 'STOP' });
+    sendEvent({
+      type: 'error',
+      message: language === 'ar'
+        ? 'خدمة الذكاء الاصطناعي غير مهيأة. أضف GEMINI_API_KEY إلى إعدادات الخادم.'
+        : 'The AI service is not configured. Add GEMINI_API_KEY to the server environment.',
+    });
+    sendEvent({ type: 'done', finishReason: 'ERROR' });
     res.end();
     return;
   }
 
   const startTime = Date.now();
-  const lastUserMsg = messages[messages.length - 1]?.content || '';
 
-  // Check if user is asking for image generation
-  const isImageRequest = /(?:ارسم|صورة|أنشئ صورة|صمم صورة|توليد صورة|dall-?e|generate (?:an? )?image|draw|picture of|create (?:an? )?image)/i.test(lastUserMsg);
-
-  let imageSent = false;
 
   try {
     // Format conversation history for Gemini
@@ -193,16 +172,9 @@ Respond naturally in the same language the user writes (e.g., Arabic if Arabic, 
 
     let fullResponseText = '';
 
-    if (isImageRequest && !imageSent) {
-      const cleanPrompt = lastUserMsg.replace(/(?:ارسم|صورة|أنشئ صورة|صمم صورة|توليد صورة|dall-?e|generate (?:an? )?image|draw|picture of|create (?:an? )?image)/gi, '').trim() || 'futuristic glowing cityscape at sunset';
-      const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=1024&height=1024&nologo=true&enhance=true`;
-      sendEvent({ type: 'image', url: imageUrl });
-      imageSent = true;
-    }
-
-    // Stream from gemini-3.8-flash (ultra-fast flagship model)
+    const geminiModel = SULY_GEMINI_MODELS[model] || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
     const responseStream = await ai.models.generateContentStream({
-      model: 'gemini-3.8-flash',
+      model: geminiModel,
       contents,
       config,
     });
@@ -225,38 +197,13 @@ Respond naturally in the same language the user writes (e.g., Arabic if Arabic, 
     const errorMsg = err instanceof Error ? err.message : String(err);
     console.error('Chat upstream notice:', errorMsg);
 
-    // Provide high-quality ChatGPT response even if external upstream provider experiences temporary 503 spike
-    const lastUserMsg = messages[messages.length - 1]?.content || 'مرحبًا';
-    const fallbackAnswer = `أهلاً بك! أنا **ChatGPT**.
-
-لقد استلمت رسالتك: "${lastUserMsg}".
-
-يسعدني تقديم الإجابة والمساعدة الفورية في:
-1. **البرمجة والتطوير**: كتابة وفحص الأكواد بمختلف اللغات (Python, JavaScript, TypeScript, Flutter, Dart, Go, C++...).
-2. **الرياضيات والمنطق**: حل المعادلات وتوضيح خطوات الحل بالتفصيل.
-3. **الكتابة والترجمة**: صياغة النصوص، المقالات، والترجمة الدقيقة بين مختلف اللغات.
-4. **تحليل البيانات وتصميم النظم**: تخطيط البنى التحتية وقواعد البيانات.
-
-أخبرني بما تود البدء فيه أو أرسل لي التفاصيل وسأتابع معك خطوة بخطوة! ✨`;
-
-    if (isImageRequest && !imageSent) {
-      const cleanPrompt = lastUserMsg.replace(/(?:ارسم|صورة|أنشئ صورة|صمم صورة|توليد صورة|dall-?e|generate (?:an? )?image|draw|picture of|create (?:an? )?image)/gi, '').trim() || 'futuristic glowing cityscape at sunset';
-      const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=1024&height=1024&nologo=true&enhance=true`;
-      sendEvent({ type: 'image', url: imageUrl });
-      imageSent = true;
-    }
-
-    const words = fallbackAnswer.split(' ');
-    for (let i = 0; i < words.length; i++) {
-      sendEvent({ type: 'content', text: (i === 0 ? '' : ' ') + words[i] });
-      await new Promise((r) => setTimeout(r, 20));
-    }
-
-    const durationMs = Date.now() - startTime;
-    const tokenCount = Math.max(Math.round(fallbackAnswer.split(/\s+/).length * 1.3), 1);
-    sendEvent({ type: 'metrics', tokens: tokenCount, durationMs });
-
-    sendEvent({ type: 'done', finishReason: 'STOP' });
+    sendEvent({
+      type: 'error',
+      message: language === 'ar'
+        ? 'تعذر الحصول على رد من مزود الذكاء الاصطناعي. تحقق من اسم النموذج وإعدادات الخادم ثم أعد المحاولة.'
+        : 'The AI provider could not complete this request. Check the configured model and server logs, then retry.',
+    });
+    sendEvent({ type: 'done', finishReason: 'ERROR' });
     res.end();
   }
 });
@@ -278,7 +225,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`ChatGPT App server running at http://0.0.0.0:${PORT}`);
+    console.log(`SULY App server running at http://0.0.0.0:${PORT}`);
   });
 }
 

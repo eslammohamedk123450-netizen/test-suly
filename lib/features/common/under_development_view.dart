@@ -54,7 +54,7 @@ class UnderDevelopmentView extends StatelessWidget {
                   vertical: AppSpacing.xs,
                 ),
                 decoration: BoxDecoration(
-                  color: AppColors.secondaryGold.withOpacity(0.14),
+                  color: AppColors.secondaryGold.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(AppRadii.lg),
                   border: Border.all(color: AppColors.secondaryGold),
                 ),

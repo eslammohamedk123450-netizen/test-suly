@@ -154,10 +154,10 @@ class _Sidebar extends StatelessWidget {
           // Brand header + collapse toggle.
           Container(
             padding: EdgeInsets.all(collapsed ? AppSpacing.sm : AppSpacing.md),
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: AppColors.surfaceSecondary,
-              borderRadius: BorderRadius.vertical(
-                top: Radius.circular(AppRadii.lg),
+              borderRadius: const BorderRadius.vertical(
+                top: const Radius.circular(AppRadii.lg),
               ),
             ),
             child: Row(
@@ -265,7 +265,7 @@ class _SidebarItem extends StatelessWidget {
       ),
       child: Material(
         color: selected
-            ? AppColors.primaryGold.withOpacity(0.14)
+            ? AppColors.primaryGold.withValues(alpha: 0.14)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(AppRadii.md),
         child: InkWell(
@@ -347,10 +347,10 @@ class _ProfileArea extends StatelessWidget {
       padding: EdgeInsets.all(compact ? AppSpacing.sm : AppSpacing.md),
       child: Row(
         children: <Widget>[
-          CircleAvatar(
+          const CircleAvatar(
             radius: AppSizes.avatarSize / 2,
             backgroundColor: AppColors.surfaceSecondary,
-            child: const Icon(
+            child: Icon(
               Icons.person_outline,
               color: AppColors.textMuted,
             ),
@@ -403,7 +403,7 @@ class _NarrowShell extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(AppStrings.appName),
+        title: const Text(AppStrings.appName),
         leading: Builder(
           builder: (BuildContext context) => IconButton(
             icon: const Icon(Icons.menu),

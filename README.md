@@ -1,74 +1,65 @@
-# ChatGPT / SULY AI (Flutter Mobile & Web + React Web)
+# SULY AI — تطبيق Flutter للويب والهاتف
 
-تطبيق متطور ومطابق بالكامل لتجربة **ChatGPT** الرسمية، مهيأ ليعمل كتطبيق **موبايل (Android & iOS)** و **تطبيق ويب متجاوب (Web)** مبني بفلاتر (Flutter)، مع دعم مساحات العمل والميزات الاحترافية.
+يحتوي المستودع على واجهة Flutter مشتركة يمكن تشغيلها على الويب وAndroid وiOS، إضافةً إلى عميل React/Vite للويب وخادم Express مستقل. **Flutter هو مسار التطبيق المشترك**؛ عميل React ليس تطبيق هاتف.
 
----
+## المنصات الموجودة
 
-## 📱 إمكانيات فلاتر للموبايل والويب (Flutter Mobile & Web)
+- Flutter Web موجود في `web/`.
+- ملفات مشاريع Android وiOS موجودة الآن في المستودع، وتُبنى من واجهة Flutter نفسها.
+- يتطلب الاتصال بخادم API تمرير `SULY_API_BASE_URL`. الافتراضيات المحلية ليست للإنتاج أو الهاتف الحقيقي.
+- معرّف Android الحالي `com.suly.suly_ai` مؤقت إلى أن يُعتمد معرّف النشر النهائي. يتطلب النشر إعداد HTTPS وCORS والتوقيع ومعرّفات الحزم وسياسة الخصوصية. بناء iOS يتطلب macOS وXcode.
 
-1. **واجهة متجاوبة بالكامل (Adaptive UI):**
-   - **على الموبايل (الهواتف الذكية):** شريط علوي مع قائمة منزلقة (Navigation Drawer)، حقل إدخال سفلي عائم كبسولي، زر صوتي فوري، وعرض مساحة العمل Canvas كواجهة قابلة للتوسيع.
-   - **على الويب والتابلت (شاشات عريضة):** شريط جانبي ممتد للمحادثات والمجلدات، ومساحة عمل Canvas تعمل جنباً إلى جنب (Side-by-Side) مع المحادثة.
+## الميزات الحالية في Flutter
 
-2. **مساحة العمل التفاعلية (Canvas Workspace):**
-   - تحرير وتعديل الأكواد والمستندات مع أرقام الأسطر وعداد الكلمات.
-   - أزرار الذكاء الاصطناعي السريعة: Polish, Shorten, Lengthen, Fix Bugs, Add Comments.
-   - إمكانية فتح أي كتلة كود مباشرة في Canvas عبر زر `كانفاس / Canvas`.
+تتضمن الواجهة تصميمًا متجاوبًا، العربية RTL والإنجليزية LTR، السمة الفاتحة والداكنة، محادثات محلية مرتبطة بخادم SULY، مجلدات، سياق ذاكرة اختياري بلا بيانات افتراضية، محادثة مؤقتة لا تُحفظ رسائلها أو مرفقاتها على الخادم، Canvas، أوامر مائلة، ومعاينة ملفات CSV والنصوص. تدعم المرفقات PDF وCSV وTXT وMarkdown وJSON وصور PNG/JPEG/WebP ضمن حد الخادم (10 MiB لكل ملف). يجب أن يكون المستخدم مسجلًا وأن يكون مزود AI مهيأ في الخادم.
 
-3. **قائمة الأوامر الفورية (Slash Commands):**
-   - اكتب `/` في مربع النص لتفتح قائمة منبثقة تفاعلية:
-     - `/image` — توليد صور
-     - `/canvas` — فتح مساحة العمل
-     - `/code` — كتابة كود
-     - `/chart` — رسم بياني
-     - `/web` — بحث ويب
-     - `/reason` — تفكير منطقي متعمق o1
-     - `/summarize` — تلخيص
+تبديل النموذج في واجهة Flutter غير معروض لأن الخادم يختار المزود/النموذج المهيأ؛ لذلك أزيلت قائمة النماذج التمثيلية التي لم تكن تؤثر في الطلب. بحث الويب وتوليد الصور والصوت الحقيقي تحتاج مزودًا أو إعدادًا إضافيًا، ولا ينبغي التعامل مع الأزرار التجريبية كأنها خدمة مهيأة.
 
-4. **المجلدات والمشاريع (Folders & Projects):**
-   - إنشاء مجلدات للمشاريع في القائمة الجانبية.
-   - نقل وتصنيف المحادثات داخل المجلدات وطيها/توسيعها.
-
-5. **سجل الذاكرة الذكية (ChatGPT Memory Log):**
-   - تبويب الذاكرة في الإعدادات مع تحكم كامل (تفعيل/إلغاء، إضافة ذكريات وتفضيلات يدوية، وحذف الذكريات).
-   - حقن الذكريات تلقائياً في سياق النموذج لتخصيص الردود.
-
-6. **مفتش ملفات CSV والمستندات (Document & CSV Inspector):**
-   - جدول بيانات تفاعلي قابل للبحث والتصفح وتقسيم الصفحات (Pagination) لملفات CSV.
-   - عارض نصوص وأكواد برمجية مع أرقام الأسطر.
-   - أزرار استفسارات تحليل فورية بنقرة واحدة.
-
-7. **الوضع الصوتي (Voice Mode):**
-   - محاكاة متقدمة للوضع الصوتي مع الهالة التفاعلية المتحركة وخيارات الأصوات (Breeze, Cove, Ember, Juniper, Sky).
-
-8. **الوضع الداكن والفاتح (Dark / Light Themes):**
-   - تطابق تام مع ألوان OpenAI الرسمية: الوضع الداكن (`#212121`, `#171717`, `#2F2F2F`) والوضع الفاتح.
-
----
-
-## 🚀 تشغيل تطبيق Flutter (Mobile & Web)
+## تشغيل Flutter
 
 ```bash
-# تثبيت حزم واعتماديات Flutter
 flutter pub get
 
-# تشغيل التطبيق على الهاتف (Android أو iOS)
-flutter run -d android
-# أو
-flutter run -d ios
+# Flutter Web محلي
+flutter run -d chrome --dart-define=SULY_API_BASE_URL=http://localhost:8000
 
-# تشغيل التطبيق على متصفح الويب (Chrome / Web)
-flutter run -d chrome
+# محاكي Android
+flutter run -d android --dart-define=SULY_API_BASE_URL=http://10.0.2.2:8000
+
+# هاتف حقيقي أو إنتاج: عنوان يمكن للهاتف الوصول إليه (يفضل HTTPS)
+flutter run -d <device-id> --dart-define=SULY_API_BASE_URL=https://api.example.com
+
+# بناء ملفات Flutter
+flutter build web --dart-define=SULY_API_BASE_URL=https://api.example.com
+flutter build apk --dart-define=SULY_API_BASE_URL=https://api.example.com
+flutter build appbundle --dart-define=SULY_API_BASE_URL=https://api.example.com
+flutter build ios --dart-define=SULY_API_BASE_URL=https://api.example.com
 ```
 
----
+### إعداد الخادم
 
-## 💻 تشغيل إصدار الويب السريع (Node/React)
+راجع [`backend/README.md`](backend/README.md) و[`.env.example`](.env.example) لضبط قاعدة البيانات ومفتاح الجلسات ومزود AI. لا تضع مفاتيح الخادم داخل التطبيق أو `--dart-define` لواجهات عامة؛ هذا المتغير مخصص لعنوان الخادم فقط.
+
+## عميل React/Vite المنفصل
 
 ```bash
-# تثبيت الاعتماديات
 npm install
-
-# تشغيل خادم التطوير
+npm run lint
+npm run build
 npm run dev
 ```
+
+يحتاج الخادم إلى `GEMINI_API_KEY` على الخادم لتوليد الردود الحقيقية. لا يُستخدم React لإنتاج APK أو تطبيق iOS.
+
+## التحقق
+
+```bash
+flutter analyze
+flutter test
+flutter build web --dart-define=SULY_API_BASE_URL=https://api.example.com
+npm run lint
+npm run build
+python -m pytest -q backend/tests backend/app/tests
+```
+
+لا تحفظ أسرارًا أو ملفات `.env` في Git.

@@ -28,7 +28,7 @@ export interface CustomGpt {
   tagline: string;
   description: string;
   avatar: string;
-  category: 'Featured' | 'DALL·E' | 'Writing' | 'Productivity' | 'Coding' | 'Education';
+  category: 'Featured' | 'Images' | 'Writing' | 'Productivity' | 'Coding' | 'Education';
   author: string;
   capabilities: string[];
   systemPrompt: string;

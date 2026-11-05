@@ -37,36 +37,36 @@ import {
 
 const DEFAULT_MODELS: ModelOption[] = [
   {
-    id: 'gpt-4o',
-    name: 'GPT-4o',
-    description: 'Our most intelligent and versatile model for coding, writing, and deep analysis.',
+    id: 'suly-pro',
+    name: 'SULY Pro',
+    description: 'General-purpose assistance for writing, coding, and analysis.',
     tag: 'Flagship',
     icon: 'sparkle',
-    capabilities: ['Web browsing', 'DALL·E Image generation', 'Code execution', 'File analysis'],
+    capabilities: ['Text generation', 'Code and writing assistance', 'File input'],
   },
   {
-    id: 'o1',
-    name: 'o1',
-    description: 'Reasoning model designed to solve hard problems in STEM, logic, and architecture.',
+    id: 'suly-reasoning',
+    name: 'SULY Reasoning',
+    description: 'A reasoning-focused assistant for STEM, logic, and architecture topics.',
     tag: 'Reasoning',
     icon: 'brain',
-    capabilities: ['Step-by-step thinking', 'Deep math & science', 'Architecture design'],
+    capabilities: ['Complex problem solving', 'Math and science assistance', 'Architecture discussion'],
   },
   {
-    id: 'gpt-4o-mini',
-    name: 'GPT-4o mini',
-    description: 'Fast, lightweight model for fast answers and routine everyday tasks.',
+    id: 'suly-fast',
+    name: 'SULY Fast',
+    description: 'A fast assistant for routine questions and everyday tasks.',
     tag: 'Fast',
     icon: 'zap',
-    capabilities: ['Instant answers', 'Lightweight tasks', 'High speed'],
+    capabilities: ['Quick text responses', 'Everyday tasks', 'Code assistance'],
   },
   {
-    id: 'o3-mini',
-    name: 'o3-mini',
-    description: 'Fast STEM-focused reasoning model with low latency and precise logic.',
+    id: 'suly-stem',
+    name: 'SULY STEM',
+    description: 'A focused assistant for math, algorithms, and STEM topics.',
     tag: 'STEM Reasoning',
     icon: 'cpu',
-    capabilities: ['Rapid math', 'Algorithm optimization', 'Deep logic'],
+    capabilities: ['Math and STEM assistance', 'Algorithms', 'Logical problem solving'],
   },
 ];
 
@@ -80,7 +80,7 @@ export default function App() {
   });
 
   const [models, setModels] = useState<ModelOption[]>(DEFAULT_MODELS);
-  const [selectedModel, setSelectedModel] = useState<string>('gpt-4o');
+  const [selectedModel, setSelectedModel] = useState<string>('suly-pro');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isTemporary, setIsTemporary] = useState(false);
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
@@ -258,7 +258,7 @@ export default function App() {
       title: `${gpt.avatar} ${gpt.name}`,
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      model: 'gpt-4o',
+      model: 'suly-pro',
       customGptId: gpt.id,
       messages: [
         {
@@ -440,6 +440,7 @@ export default function App() {
         body: JSON.stringify({
           messages: historyToSend,
           model: selectedModel,
+          language: settings.language,
           webSearch,
           reasoning,
           memories: settings.memoryEnabled ? settings.memories : [],
@@ -528,6 +529,14 @@ export default function App() {
                     };
                   })
                 );
+              } else if (parsed.type === 'error') {
+                assistantText = `⚠️ ${parsed.message || (isRtl ? 'تعذر الحصول على رد.' : 'Could not get a response.')}`;
+                setConversations((prev) => prev.map((c) => c.id !== convId ? c : ({
+                  ...c,
+                  messages: c.messages.map((m) => m.id === assistantMsgId
+                    ? { ...m, content: assistantText, error: String(parsed.message || 'AI provider error') }
+                    : m),
+                })));
               } else if (parsed.type === 'done') {
                 // Done
               }
@@ -656,7 +665,7 @@ export default function App() {
       className="flex h-screen w-screen overflow-hidden bg-white dark:bg-[#212121] text-[#0d0d0d] dark:text-[#ececec] font-sans transition-colors duration-200"
       dir={isRtl ? 'rtl' : 'ltr'}
     >
-      {/* ChatGPT Left Sidebar */}
+      {/* SULY Left Sidebar */}
       <Sidebar
         conversations={conversations}
         activeId={currentConvId}

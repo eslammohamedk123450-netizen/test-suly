@@ -92,14 +92,25 @@ class ChatTurn {
 Future<ChatApiResult> sendMessage({
   required String message,
   List<Map<String, String>> history = const [],
+  List<int> attachmentIds = const [],
+  int? conversationId,
+  bool temporary = false,
+  String systemContext = '',
   http.Client? client,
 }) async {
   try {
-    final uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.chatEndpoint}');
-
+    var uri = Uri.parse('${ApiConfig.baseUrl}${ApiConfig.chatEndpoint}');
+    if (conversationId != null) {
+      uri = uri.replace(queryParameters: {
+        'conversation_id': conversationId.toString(),
+      });
+    }
     final requestBody = <String, dynamic>{
       'message': message,
       'history': history,
+      'attachment_ids': attachmentIds,
+      'temporary': temporary,
+      'system_context': systemContext,
     };
 
     final headers = <String, String>{

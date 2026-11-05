@@ -137,7 +137,7 @@ export const VoiceModeModal: React.FC<VoiceModeModalProps> = ({
         </button>
       </div>
 
-      {/* Central Fluid Pulsing ChatGPT Orb */}
+      {/* Central Fluid Pulsing SULY Orb */}
       <div className="flex-1 flex flex-col items-center justify-center my-8">
         <div className="relative flex items-center justify-center">
           {/* Outer glow ring */}

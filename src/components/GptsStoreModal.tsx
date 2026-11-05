@@ -17,29 +17,29 @@ import { CustomGpt } from '../types';
 
 export const CURATED_GPTS: CustomGpt[] = [
   {
-    id: 'gpt-dalle',
-    name: 'DALL·E',
-    tagline: 'حول أفكارك وتخيلاتك إلى صور فوتوغرافية وأعمال فنية مبهرة.',
-    description: 'متخصص في توليد وتعديل الصور بجودة فائقة مع اقتراح تحسينات بصرية إبداعية.',
+    id: 'suly-image-prompts',
+    name: 'SULY Image Prompts',
+    tagline: 'حوّل فكرتك إلى وصف بصري واضح يمكنك استخدامه في أداة صور.',
+    description: 'مساعد لكتابة وتحسين أوصاف الصور؛ لا ينشئ صورة داخل هذا التطبيق.',
     avatar: '🎨',
-    category: 'DALL·E',
-    author: 'OpenAI',
-    capabilities: ['توليد صور فوتوغرافية', 'رسومات رقمية', 'تعديل الإضاءة والزوايا'],
-    systemPrompt: 'أنت مساعد DALL·E المتخصص في تحويل الأفكار إلى صور وأعمال فنية. صف كل مشهد بتفاصيل سينمائية مبهرة باللغة التي يطلبها المستخدم واقترح أنماطاً بصرية إبداعية.',
+    category: 'Images',
+    author: 'SULY Studio',
+    capabilities: ['وصف المشهد والتكوين', 'اقتراح الأسلوب والألوان', 'كتابة أوصاف واضحة'],
+    systemPrompt: 'ساعد المستخدم على كتابة وصف نصي دقيق لصورة. لا تدّعِ إنشاء الصورة أو تعديلها؛ أنت تنتج وصفًا نصيًا فقط.',
     starterPrompts: [
-      'ارسم لوحة زيتية كلاسيكية لرائد فضاء يشرب القهوة في باريس.',
-      'صورة فوتوغرافية لسيارة كهربائية مستقبلية في شوارع طوكيو الممطرة.',
-      'شعار Minimalist حديث لشركة ذكاء اصطناعي ناشئة.',
+      'اكتب وصفًا دقيقًا لصورة لوحة زيتية لرائد فضاء يشرب القهوة في باريس.',
+      'اكتب prompt لصورة فوتوغرافية لسيارة كهربائية مستقبلية في شوارع طوكيو الممطرة.',
+      'اكتب وصفًا بصريًا لشعار Minimalist لشركة ذكاء اصطناعي ناشئة.',
     ],
   },
   {
-    id: 'gpt-coding',
+    id: 'suly-coding',
     name: 'Code Copilot Pro',
     tagline: 'شريكك البرمجي لكتابة، تصحيح، وهندسة الأكواد بأعلى معايير Clean Code.',
     description: 'يساعد في بناء تطبيقات الويب والهواتف، تصحيح الأخطاء المعقدة، وتحسين أداء الخوارزميات.',
     avatar: '💻',
     category: 'Coding',
-    author: 'ChatGPT Community',
+    author: 'SULY Community',
     capabilities: ['فحص الأمان والثغرات', 'إعادة هيكلة Refactoring', 'كتابة اختبارات Unit Tests'],
     systemPrompt: 'أنت مهندس برمجيات محترف (Staff Software Engineer). قدم أكواداً كاملة وعالية الجودة متوافقة مع أحدث المعايير مع شرح مقتضب وشامل، واقترح أفضل الممارسات الأمنية وهندسة البرمجيات.',
     starterPrompts: [
@@ -49,13 +49,13 @@ export const CURATED_GPTS: CustomGpt[] = [
     ],
   },
   {
-    id: 'gpt-data',
+    id: 'suly-data',
     name: 'Data Analyst & Insights',
     tagline: 'تحليل جداول البيانات، استخراج المؤشرات، وتوليد الرسوم البيانية.',
     description: 'ارفع ملفات CSV أو JSON أو ألصق الأرقام لتحصل على تقارير إحصائية وتوقعات دقيقة.',
     avatar: '📊',
     category: 'Productivity',
-    author: 'ChatGPT Community',
+    author: 'SULY Community',
     capabilities: ['تحليل إحصائي متقدم', 'توليد رسوم بيانية', 'اكتشاف الأنماط والاتجاهات'],
     systemPrompt: 'أنت عالم بيانات ومحلل أعمال أول. حلل كل مجموعة بيانات بدقة، وقدم جداول مقارنة ومؤشرات إحصائية (Mean, Median, Trends) مع استنتاجات عملية قابلة للتنفيذ.',
     starterPrompts: [
@@ -65,13 +65,13 @@ export const CURATED_GPTS: CustomGpt[] = [
     ],
   },
   {
-    id: 'gpt-writer',
+    id: 'suly-writer',
     name: 'Creative Writing Mentor',
     tagline: 'صياغة المقالات، القصص، والنصوص التسويقية بنبرة بليغة وجذابة.',
     description: 'شريكك الإبداعي لتحسين أسلوب الكتابة، صياغة رسائل البريد، وبناء محتوى احترافي.',
     avatar: '✍️',
     category: 'Writing',
-    author: 'ChatGPT Community',
+    author: 'SULY Community',
     capabilities: ['كتابة إبداعية وبلاغية', 'صياغة إعلانات Copywriting', 'تدقيق لغوي وصياغي'],
     systemPrompt: 'أنت كاتب ومحرر نصوص أدبي وصحفي بارع. اكتب بلغة فصيحة، رنانة، وأنيقة تتناسب تماماً مع الجمهور المستهدف والنبرة المطلوبة.',
     starterPrompts: [
@@ -81,13 +81,13 @@ export const CURATED_GPTS: CustomGpt[] = [
     ],
   },
   {
-    id: 'gpt-math',
+    id: 'suly-math',
     name: 'Math & STEM Solver',
     tagline: 'حل مسائل التفاضل، الجبر، والفيزياء خطوة بخطوة مع البراهين.',
     description: 'مرشد أكاديمي يشرح النظريات العلمية والمعادلات الصعبة بتبسيط ومنطق واضح.',
     avatar: '🔬',
     category: 'Education',
-    author: 'OpenAI Education',
+    author: 'SULY Studio Education',
     capabilities: ['حل معادلات تفاضلية', 'براهين رياضية', 'محاكاة فيزيائية'],
     systemPrompt: 'أنت أستاذ في العلوم والرياضيات والفيزياء. اشرح كل مسألة بخطوات تفصيلية مرتبة، مع ذكر القوانين المستخدمة والسبب المنطقي لكل خطوة.',
     starterPrompts: [
@@ -116,7 +116,7 @@ export const GptsStoreModal: React.FC<GptsStoreModalProps> = ({
 
   if (!isOpen) return null;
 
-  const categories = ['All', 'Featured', 'DALL·E', 'Coding', 'Writing', 'Productivity', 'Education'];
+  const categories = ['All', 'Featured', 'Images', 'Coding', 'Writing', 'Productivity', 'Education'];
 
   const filtered = CURATED_GPTS.filter((gpt) => {
     const matchesSearch =
@@ -141,12 +141,12 @@ export const GptsStoreModal: React.FC<GptsStoreModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold">
-                {isRtl ? 'استكشف نماذج ومساعدي GPTs' : 'Explore GPTs'}
+                {isRtl ? 'استكشف نماذج ومساعدي SULY assistants' : 'Explore SULY assistants'}
               </h3>
               <p className="text-xs text-[#8e8e8e]">
                 {isRtl
-                  ? 'اكتشف نسخاً مخصصة من ChatGPT تجمع بين التعليمات والمهارات المتقدمة'
-                  : 'Discover customized versions of ChatGPT tailored for specific tasks'}
+                  ? 'اكتشف نسخاً مخصصة من SULY تجمع بين التعليمات والمهارات المتقدمة'
+                  : 'Discover customized versions of SULY tailored for specific tasks'}
               </p>
             </div>
           </div>
@@ -167,7 +167,7 @@ export const GptsStoreModal: React.FC<GptsStoreModalProps> = ({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={isRtl ? 'ابحث في النماذج والمساعدين...' : 'Search GPTs...'}
+              placeholder={isRtl ? 'ابحث في النماذج والمساعدين...' : 'Search SULY assistants...'}
               className="w-full ps-9 pe-4 py-2 rounded-xl bg-white dark:bg-[#171717] border border-neutral-300 dark:border-white/10 text-xs focus:outline-none focus:border-emerald-500 transition-colors"
             />
           </div>
@@ -190,7 +190,7 @@ export const GptsStoreModal: React.FC<GptsStoreModalProps> = ({
           </div>
         </div>
 
-        {/* GPTs Cards Grid */}
+        {/* SULY assistants Cards Grid */}
         <div className="flex-1 overflow-y-auto p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
           {filtered.map((gpt) => (
             <div

@@ -55,21 +55,32 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ theme }) => {
   // Credit Transactions (Interactive Local Simulation)
   const [transactions, setTransactions] = useState<CreditTransaction[]>(MOCK_CREDIT_TRANSACTIONS);
 
-  // Credit Action Modal State
+  // Credit Action Modal State (Interactive Local Simulation)
+  const MAX_REASON_LENGTH = 120; // حد إدخال تجريبي للواجهة
+
   const [creditActionModal, setCreditActionModal] = useState<{
     isOpen: boolean;
     step: 'input' | 'confirm';
     actionType: 'add' | 'deduct' | 'freeze' | 'release';
     targetUser: AdminUser | null;
-    amount: number;
-    reason: string;
+    amountInput: string;
+    reasonInput: string;
+    validatedAmount: number;
+    validatedReason: string;
+    errors: {
+      amount?: string;
+      reason?: string;
+    };
   }>({
     isOpen: false,
     step: 'input',
     actionType: 'add',
     targetUser: null,
-    amount: 10,
-    reason: '',
+    amountInput: '10',
+    reasonInput: '',
+    validatedAmount: 10,
+    validatedReason: '',
+    errors: {},
   });
 
   // Subscription Action Confirmation State
@@ -96,28 +107,157 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ theme }) => {
     setTimeout(() => setSimulationToast(null), 3500);
   };
 
-  // Handle Credit Action Execution
+  // Helper: التحقق الصارم من مدخلات إجراء الرصيد التجريبي
+  const validateCreditAction = (
+    actionType: 'add' | 'deduct' | 'freeze' | 'release',
+    targetUser: AdminUser | null,
+    amountRaw: string,
+    reasonRaw: string
+  ): {
+    isValid: boolean;
+    amount: number;
+    reason: string;
+    errors: { amount?: string; reason?: string };
+  } => {
+    const errs: { amount?: string; reason?: string } = {};
+
+    // 1. فحص المقدار: يجب أن يكون عددًا صحيحًا موجبًا (رفض الصفر، السالب، الكسور، الحروف، الفراغ)
+    const trimmedAmount = (amountRaw || '').trim();
+    let parsedAmount = 0;
+
+    if (!trimmedAmount) {
+      errs.amount = 'أدخل عددًا صحيحًا أكبر من صفر.';
+    } else if (!/^[1-9]\d*$/.test(trimmedAmount)) {
+      errs.amount = 'أدخل عددًا صحيحًا أكبر من صفر.';
+    } else {
+      parsedAmount = parseInt(trimmedAmount, 10);
+      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        errs.amount = 'أدخل عددًا صحيحًا أكبر من صفر.';
+      }
+    }
+
+    // 2. فحص السبب: إلزامي بعد إزالة المسافات، مع سقف لطول النص التجريبي
+    const trimmedReason = (reasonRaw || '').trim();
+    if (!trimmedReason) {
+      errs.reason = 'أدخل سببًا تجريبيًا للإجراء.';
+    } else if (trimmedReason.length > MAX_REASON_LENGTH) {
+      errs.reason = `السبب يتجاوز الحد التجريبي للواجهة (${MAX_REASON_LENGTH} حرفاً).`;
+    }
+
+    // 3. فحص الرصيد بحسب نوع العملية التجريبية
+    if (!errs.amount && targetUser) {
+      const currentUser = usersList.find((u) => u.id === targetUser.id) || targetUser;
+
+      if (actionType === 'deduct' || actionType === 'freeze') {
+        if (parsedAmount > currentUser.creditsAvailable) {
+          errs.amount = `المقدار المطلوب (${parsedAmount}) يتجاوز الرصيد المتاح في بيانات الاختبار (${currentUser.creditsAvailable}).`;
+        }
+      } else if (actionType === 'release') {
+        if (parsedAmount > currentUser.creditsFrozen) {
+          errs.amount = `المقدار المطلوب (${parsedAmount}) يتجاوز الرصيد المجمّد في بيانات الاختبار (${currentUser.creditsFrozen}).`;
+        }
+      }
+    }
+
+    return {
+      isValid: Object.keys(errs).length === 0,
+      amount: parsedAmount,
+      reason: trimmedReason,
+      errors: errs,
+    };
+  };
+
+  // الانتقال إلى شاشة المراجعة والتأكيد بعد التحقق
+  const handleProceedToReview = () => {
+    const val = validateCreditAction(
+      creditActionModal.actionType,
+      creditActionModal.targetUser,
+      creditActionModal.amountInput,
+      creditActionModal.reasonInput
+    );
+
+    if (!val.isValid) {
+      setCreditActionModal((prev) => ({
+        ...prev,
+        errors: val.errors,
+      }));
+      return;
+    }
+
+    setCreditActionModal((prev) => ({
+      ...prev,
+      step: 'confirm',
+      validatedAmount: val.amount,
+      validatedReason: val.reason,
+      errors: {},
+    }));
+  };
+
+  // تنفيذ المحاكاة بعد التحقق النهائي
   const executeCreditSimulation = () => {
     if (!creditActionModal.targetUser) return;
-    const { actionType, targetUser, amount, reason } = creditActionModal;
+    const { actionType, targetUser, amountInput, reasonInput } = creditActionModal;
 
+    // إعادة التحقق بدقة قبل التنفيذ لمنع أي عدم اتساق
+    const val = validateCreditAction(actionType, targetUser, amountInput, reasonInput);
+    if (!val.isValid) {
+      setCreditActionModal((prev) => ({
+        ...prev,
+        step: 'input',
+        errors: val.errors,
+      }));
+      showToast('تعذر تنفيذ المحاكاة: توجد بيانات غير صالحة.');
+      return;
+    }
+
+    const confirmedAmount = val.amount;
+    const confirmedReason = val.reason;
+
+    // فحص إمكانية تنفيذ العملية بالكامل دون تجزئة
+    const currentUser = usersList.find((u) => u.id === targetUser.id) || targetUser;
+    if (actionType === 'deduct' || actionType === 'freeze') {
+      if (confirmedAmount > currentUser.creditsAvailable) {
+        setCreditActionModal((prev) => ({
+          ...prev,
+          step: 'input',
+          errors: {
+            amount: `تعذر التنفيذ: المقدار (${confirmedAmount}) يتجاوز الرصيد المتاح في بيانات الاختبار (${currentUser.creditsAvailable}).`,
+          },
+        }));
+        showToast('تعذر تنفيذ المحاكاة بالكامل.');
+        return;
+      }
+    }
+    if (actionType === 'release') {
+      if (confirmedAmount > currentUser.creditsFrozen) {
+        setCreditActionModal((prev) => ({
+          ...prev,
+          step: 'input',
+          errors: {
+            amount: `تعذر التنفيذ: المقدار (${confirmedAmount}) يتجاوز الرصيد المجمّد في بيانات الاختبار (${currentUser.creditsFrozen}).`,
+          },
+        }));
+        showToast('تعذر تنفيذ المحاكاة بالكامل.');
+        return;
+      }
+    }
+
+    // تطبيق التغيير في الذاكرة
     setUsersList((prev) =>
       prev.map((u) => {
         if (u.id !== targetUser.id) return u;
         let newAvail = u.creditsAvailable;
         let newFrozen = u.creditsFrozen;
 
-        if (actionType === 'add') newAvail += amount;
-        if (actionType === 'deduct') newAvail = Math.max(0, newAvail - amount);
+        if (actionType === 'add') newAvail += confirmedAmount;
+        if (actionType === 'deduct') newAvail -= confirmedAmount;
         if (actionType === 'freeze') {
-          const actualFreeze = Math.min(newAvail, amount);
-          newAvail -= actualFreeze;
-          newFrozen += actualFreeze;
+          newAvail -= confirmedAmount;
+          newFrozen += confirmedAmount;
         }
         if (actionType === 'release') {
-          const actualRelease = Math.min(newFrozen, amount);
-          newFrozen -= actualRelease;
-          newAvail += actualRelease;
+          newFrozen -= confirmedAmount;
+          newAvail += confirmedAmount;
         }
 
         const updated = { ...u, creditsAvailable: newAvail, creditsFrozen: newFrozen };
@@ -126,7 +266,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ theme }) => {
       })
     );
 
-    // Add row to transaction ledger
+    // تسجيل العملية في دفتر الحركات بالقيمة والسبب المطابقين تماماً
     const actionLabel =
       actionType === 'add'
         ? 'إضافة رصيد (محاكاة)'
@@ -141,14 +281,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ theme }) => {
       userId: targetUser.id,
       userName: targetUser.name,
       type: actionLabel,
-      amount: actionType === 'deduct' || actionType === 'freeze' ? -amount : amount,
-      reason: reason || 'إجراء اختباري لمحاكاة إدارة الرصيد',
+      amount: actionType === 'deduct' || actionType === 'freeze' ? -confirmedAmount : confirmedAmount,
+      reason: confirmedReason,
       timestamp: new Date().toISOString().replace('T', ' ').slice(0, 19) + ' (افتراضي)',
       executedBy: 'admin@example.com',
     };
 
     setTransactions((prev) => [newTx, ...prev]);
-    setCreditActionModal({ ...creditActionModal, isOpen: false, step: 'input', reason: '' });
+    setCreditActionModal({
+      isOpen: false,
+      step: 'input',
+      actionType: 'add',
+      targetUser: null,
+      amountInput: '10',
+      reasonInput: '',
+      validatedAmount: 10,
+      validatedReason: '',
+      errors: {},
+    });
     showToast('تمت المحاكاة فقط، لم يتغير أي رصيد فعلي.');
   };
 
@@ -454,8 +604,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ theme }) => {
                                     step: 'input',
                                     actionType: 'add',
                                     targetUser: u,
-                                    amount: 10,
-                                    reason: '',
+                                    amountInput: '10',
+                                    reasonInput: '',
+                                    validatedAmount: 10,
+                                    validatedReason: '',
+                                    errors: {},
                                   })
                                 }
                                 className="px-2 py-1 rounded-lg bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 border border-blue-500/30 text-[10px]"
@@ -508,8 +661,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ theme }) => {
                         step: 'input',
                         actionType: 'add',
                         targetUser: selectedUser,
-                        amount: 10,
-                        reason: 'إضافة تشجيعية تجريبية',
+                        amountInput: '10',
+                        reasonInput: 'إضافة تشجيعية تجريبية',
+                        validatedAmount: 10,
+                        validatedReason: '',
+                        errors: {},
                       })
                     }
                     className="px-2.5 py-1 rounded-lg bg-emerald-950/60 hover:bg-emerald-900 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-1"
@@ -524,8 +680,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ theme }) => {
                         step: 'input',
                         actionType: 'deduct',
                         targetUser: selectedUser,
-                        amount: 5,
-                        reason: 'تسوية خصم تجريبية',
+                        amountInput: selectedUser.creditsAvailable > 0 ? Math.min(5, selectedUser.creditsAvailable).toString() : '5',
+                        reasonInput: 'تسوية خصم تجريبية',
+                        validatedAmount: 5,
+                        validatedReason: '',
+                        errors: {},
                       })
                     }
                     className="px-2.5 py-1 rounded-lg bg-red-950/60 hover:bg-red-900 border border-red-500/30 text-red-300 text-xs flex items-center gap-1"
@@ -540,8 +699,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ theme }) => {
                         step: 'input',
                         actionType: 'freeze',
                         targetUser: selectedUser,
-                        amount: 5,
-                        reason: 'حجز مؤقت لمهمة قيد الانتظار',
+                        amountInput: selectedUser.creditsAvailable > 0 ? Math.min(5, selectedUser.creditsAvailable).toString() : '5',
+                        reasonInput: 'حجز مؤقت لمهمة قيد الانتظار',
+                        validatedAmount: 5,
+                        validatedReason: '',
+                        errors: {},
                       })
                     }
                     className="px-2.5 py-1 rounded-lg bg-amber-950/60 hover:bg-amber-900 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-1"
@@ -556,8 +718,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ theme }) => {
                         step: 'input',
                         actionType: 'release',
                         targetUser: selectedUser,
-                        amount: 5,
-                        reason: 'تحرير رصيد محجوز',
+                        amountInput: selectedUser.creditsFrozen > 0 ? Math.min(5, selectedUser.creditsFrozen).toString() : '5',
+                        reasonInput: 'تحرير رصيد محجوز',
+                        validatedAmount: 5,
+                        validatedReason: '',
+                        errors: {},
                       })
                     }
                     className="px-2.5 py-1 rounded-lg bg-blue-950/60 hover:bg-blue-900 border border-blue-500/30 text-blue-300 text-xs flex items-center gap-1"
@@ -880,38 +1045,74 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ theme }) => {
                 </div>
 
                 <div>
-                  <label className="text-neutral-300 block mb-1 font-semibold">المقدار التجريبي:</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-neutral-300 font-semibold">المقدار التجريبي:</label>
+                    <span className="text-[10px] text-neutral-500">أعداد صحيحة موجبة فقط (محاكاة)</span>
+                  </div>
                   <input
-                    type="number"
-                    min="1"
-                    max="1000"
-                    value={creditActionModal.amount}
-                    onChange={(e) =>
-                      setCreditActionModal({
-                        ...creditActionModal,
-                        amount: Math.max(1, parseInt(e.target.value, 10) || 1),
-                      })
-                    }
-                    className="w-full p-2.5 rounded-xl bg-neutral-950 border border-neutral-800 text-white font-mono text-xs focus:outline-none"
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="أدخل عددًا صحيحًا أكبر من صفر (مثال: 10)"
+                    value={creditActionModal.amountInput}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCreditActionModal((prev) => ({
+                        ...prev,
+                        amountInput: val,
+                        errors: { ...prev.errors, amount: undefined },
+                      }));
+                    }}
+                    className={`w-full p-2.5 rounded-xl bg-neutral-950 border font-mono text-xs focus:outline-none transition-colors ${
+                      creditActionModal.errors.amount
+                        ? 'border-red-500 text-red-200 focus:border-red-400'
+                        : 'border-neutral-800 text-white focus:border-amber-500/50'
+                    }`}
                   />
+                  {creditActionModal.errors.amount && (
+                    <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1 font-sans">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-red-400" />
+                      <span>{creditActionModal.errors.amount}</span>
+                    </p>
+                  )}
                 </div>
 
                 <div>
-                  <label className="text-neutral-300 block mb-1 font-semibold">سبب الإجراء:</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-neutral-300 font-semibold">سبب الإجراء:</label>
+                    <span className="text-[10px] text-neutral-500 font-mono">
+                      {creditActionModal.reasonInput.trim().length}/{MAX_REASON_LENGTH} (حد إدخال تجريبي للواجهة)
+                    </span>
+                  </div>
                   <input
                     type="text"
                     placeholder="مثال: تسوية تجريبية، حجز مهمة اختبار، منحة ترحيبية..."
-                    value={creditActionModal.reason}
-                    onChange={(e) =>
-                      setCreditActionModal({ ...creditActionModal, reason: e.target.value })
-                    }
-                    className="w-full p-2.5 rounded-xl bg-neutral-950 border border-neutral-800 text-white text-xs focus:outline-none"
+                    value={creditActionModal.reasonInput}
+                    maxLength={MAX_REASON_LENGTH}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCreditActionModal((prev) => ({
+                        ...prev,
+                        reasonInput: val,
+                        errors: { ...prev.errors, reason: undefined },
+                      }));
+                    }}
+                    className={`w-full p-2.5 rounded-xl bg-neutral-950 border text-xs focus:outline-none transition-colors ${
+                      creditActionModal.errors.reason
+                        ? 'border-red-500 text-red-200 focus:border-red-400'
+                        : 'border-neutral-800 text-white focus:border-amber-500/50'
+                    }`}
                   />
+                  {creditActionModal.errors.reason && (
+                    <p className="text-[11px] text-red-400 mt-1 flex items-center gap-1 font-sans">
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-red-400" />
+                      <span>{creditActionModal.errors.reason}</span>
+                    </p>
+                  )}
                 </div>
 
                 <div className="pt-2 flex gap-2">
                   <button
-                    onClick={() => setCreditActionModal({ ...creditActionModal, step: 'confirm' })}
+                    onClick={handleProceedToReview}
                     className={`flex-1 py-2 rounded-xl ${cfg.buttonPrimaryClass} font-semibold text-xs`}
                   >
                     الانتقال للمراجعة والتأكيد
@@ -943,11 +1144,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ theme }) => {
                         ? 'تجميد'
                         : 'تحرير'}
                     </strong>{' '}
-                    بمقدار <strong className="text-white font-mono">{creditActionModal.amount} نقطة</strong> للمستخدم{' '}
+                    بمقدار <strong className="text-white font-mono">{creditActionModal.validatedAmount} نقطة</strong> للمستخدم{' '}
                     <strong className="text-white">{creditActionModal.targetUser.name}</strong>.
                   </p>
                   <p className="text-[10px] text-amber-300/80 pt-1">
-                    السبب المسجل: {creditActionModal.reason || 'إجراء اختباري'}
+                    السبب المسجل: {creditActionModal.validatedReason}
                   </p>
                 </div>
 
@@ -963,7 +1164,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ theme }) => {
                     تأكيد المحاكاة الآن
                   </button>
                   <button
-                    onClick={() => setCreditActionModal({ ...creditActionModal, step: 'input' })}
+                    onClick={() => setCreditActionModal((prev) => ({ ...prev, step: 'input' }))}
                     className="px-3 py-2 rounded-xl bg-neutral-800 text-neutral-300 text-xs"
                   >
                     رجوع للتعديل

@@ -103,9 +103,9 @@ export const StatesGallery: React.FC<StatesGalleryProps> = ({ theme }) => {
     {
       id: 'temp-error',
       title: '4. خطأ مؤقت أو تعذر الاتصال (Disconnect / Fault)',
-      badge: 'استعادة تلقائية',
+      badge: 'محاكاة حالة خطأ',
       badgeColor: 'text-red-400 bg-red-500/10 border-red-500/20',
-      description: 'رسالة إنسانية مريحة مع زر إعادة المحاولة دون فقدان النص المكتوب أو السياق.',
+      description: 'تصور مقترح لرسالة الخطأ المؤقت مع زر إعادة محاولة تجريبي (محاكاة فقط دون حفظ فعلي للسياق).',
       render: () => (
         <div className="p-4 rounded-2xl bg-red-950/20 border border-red-500/30 space-y-3">
           <div className="flex items-center gap-2 text-xs font-bold text-red-300">
@@ -113,11 +113,11 @@ export const StatesGallery: React.FC<StatesGalleryProps> = ({ theme }) => {
             <span>تعذر الوصول إلى مصدر خارجي مؤقتاً (محاكاة حالة خطأ)</span>
           </div>
           <p className="text-xs text-neutral-300 leading-relaxed">
-            حدث بطء في الاستجابة. محادثتك وسياقك محفوظان محلياً بأمان ويمكنك المحاولة مجدداً.
+            هذه حالة توضيحية في نموذج التصميم، ولا تؤكد حفظ المحادثة أو السياق. زر إعادة المحاولة محاكاة فقط ولا يعيد تشغيل مهمة حقيقية.
           </p>
           <button className="px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white text-xs flex items-center gap-1.5 border border-neutral-700">
             <RotateCcw className="w-3.5 h-3.5" />
-            <span>إعادة المحاولة (محاكاة)</span>
+            <span>إعادة المحاولة (محاكاة فقط)</span>
           </button>
         </div>
       ),

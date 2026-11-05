@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --gold-primary: #D4AF37;
+    --gold-light: #F3E5AB;
+    --gold-dark: #997A15;
+    --obsidian-bg: #07080a;
+    --obsidian-surface: #0d0f14;
+    --obsidian-card: #13161f;
+    --obsidian-border: #1f2430;
+  }
+
+  body {
+    font-family: 'Cairo', 'Outfit', system-ui, -apple-system, sans-serif;
+    background-color: var(--obsidian-bg);
+    color: #e6e6e6;
+    overflow-x: hidden;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'Fira Code', monospace;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #07080a;
+}
+::-webkit-scrollbar-thumb {
+  background: #232836;
+  border-radius: 9999px;
+  border: 1px solid rgba(212, 175, 55, 0.15);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #d4af37;
+}
+
+/* Gold glow utilities */
+.gold-glow {
+  box-shadow: 0 0 25px -5px rgba(212, 175, 55, 0.25);
+}
+
+.gold-glow-lg {
+  box-shadow: 0 0 50px -10px rgba(212, 175, 55, 0.35);
+}
+
+.gold-border-glow {
+  border-color: rgba(212, 175, 55, 0.4);
+  box-shadow: 0 0 15px rgba(212, 175, 55, 0.15), inset 0 0 15px rgba(212, 175, 55, 0.05);
+}
+
+.text-gold-gradient {
+  background: linear-gradient(135deg, #F9F3D8 0%, #D4AF37 50%, #AA7C11 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.bg-gold-gradient {
+  background: linear-gradient(135deg, #F3E5AB 0%, #D4AF37 50%, #997A15 100%);
+}
+
+.bg-obsidian-gradient {
+  background: linear-gradient(180deg, #0d0f14 0%, #07080a 100%);
+}
+
+/* Print styling for PDF Export Center */
+@media print {
+  body {
+    background: white !important;
+    color: #111827 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .suly-document-content {
+    padding: 20px !important;
+    color: #111827 !important;
+    background: white !important;
+  }
+  .suly-document-content * {
+    color: #111827 !important;
+    border-color: #e5e7eb !important;
+  }
+  .suly-document-content pre, .suly-document-content code {
+    background: #f3f4f6 !important;
+    color: #1f2937 !important;
+    border: 1px solid #e5e7eb !important;
+  }
+}

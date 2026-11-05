@@ -1,0 +1,10 @@
+{
+  "name": "SULY AI - منصة الذكاء الاصطناعي الفاخرة",
+  "description": "منصة SULY AI الفاخرة: ذكاء اصطناعي فائق يعتمد عليه بثيم الأوبسيديان والذهب الملكي، تشغيل الأكواد الحي، الصوت التفاعلي، مركز التصدير المتقدم، والذاكرة التراكمية.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

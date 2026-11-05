@@ -69,7 +69,7 @@ app.get('/api/models', (_req: Request, res: Response) => {
 
 // Stream chat completion endpoint
 app.post('/api/chat', async (req: Request, res: Response) => {
-  const { messages, model = 'gpt-4o', webSearch = false, reasoning = false, customInstructions = '' } = req.body;
+  const { messages, model = 'gpt-4o', webSearch = false, reasoning = false, customInstructions = '', memories = [] } = req.body;
 
   if (!Array.isArray(messages) || messages.length === 0) {
     res.status(400).json({ error: 'Messages array is required.' });
@@ -97,6 +97,10 @@ Respond naturally in the same language the user writes (e.g., Arabic if Arabic, 
 
   if (customInstructions && customInstructions.trim()) {
     systemInstruction += `\n\nUser Custom Instructions:\n${customInstructions}`;
+  }
+
+  if (Array.isArray(memories) && memories.length > 0) {
+    systemInstruction += `\n\nSaved User Memory:\n${memories.map((m: any) => `- ${m.content || m}`).join('\n')}`;
   }
 
   // If Gemini API Key is missing, provide a friendly simulated response stream

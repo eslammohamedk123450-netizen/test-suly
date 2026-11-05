@@ -19,8 +19,9 @@ import {
   Maximize2,
   Sparkles,
   BarChart2,
+  FileEdit,
 } from 'lucide-react';
-import { Message } from '../types';
+import { Message, Attachment } from '../types';
 import { speakText, stopSpeaking } from '../utils/storage';
 import { CodePreviewModal } from './CodePreviewModal';
 import { DataChart } from './DataChart';
@@ -30,6 +31,8 @@ interface ChatMessageProps {
   isLast: boolean;
   onRegenerate?: () => void;
   onEdit?: (newContent: string) => void;
+  onInspectAttachment?: (att: Attachment) => void;
+  onOpenInCanvas?: (content: string, lang: string) => void;
   isRtl?: boolean;
 }
 
@@ -38,6 +41,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
   isLast,
   onRegenerate,
   onEdit,
+  onInspectAttachment,
+  onOpenInCanvas,
   isRtl = false,
 }) => {
   const [copied, setCopied] = useState(false);
@@ -129,7 +134,12 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           {message.attachments && message.attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 justify-end mb-2">
               {message.attachments.map((att) => (
-                <div key={att.id} className="relative rounded-xl overflow-hidden border border-white/10 max-w-[200px]">
+                <div
+                  key={att.id}
+                  onClick={() => onInspectAttachment && onInspectAttachment(att)}
+                  className={`relative rounded-xl overflow-hidden border border-white/10 max-w-[200px] ${onInspectAttachment ? 'cursor-pointer hover:ring-2 hover:ring-emerald-500/50 transition-all' : ''}`}
+                  title={onInspectAttachment ? (isRtl ? 'عرض وتحليل الملف' : 'Inspect file') : undefined}
+                >
                   {att.type === 'image' ? (
                     <img src={att.data} alt={att.name} className="h-28 w-auto object-cover rounded-xl" />
                   ) : (
@@ -268,6 +278,18 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                         <div className="flex items-center justify-between px-4 py-1.5 bg-[#e9e9e9] dark:bg-[#2d2d2d] text-xs font-mono text-[#5d5d5d] dark:text-[#b4b4b4]">
                           <span>{language || 'code'}</span>
                           <div className="flex items-center gap-2">
+                            {/* Canvas Open Button */}
+                            {onOpenInCanvas && (
+                              <button
+                                onClick={() => onOpenInCanvas(codeString, language || 'typescript')}
+                                className="flex items-center gap-1 px-2.5 py-1 rounded bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 font-sans font-medium transition-colors"
+                                title={isRtl ? 'فتح في مساحة العمل Canvas' : 'Open in Canvas'}
+                              >
+                                <FileEdit size={11} />
+                                <span>{isRtl ? 'كانفاس' : 'Canvas'}</span>
+                              </button>
+                            )}
+
                             {/* Live Sandbox Preview button */}
                             {isPreviewable && (
                               <button

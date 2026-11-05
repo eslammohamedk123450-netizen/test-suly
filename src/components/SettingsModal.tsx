@@ -13,6 +13,8 @@ import {
   Check,
   Archive,
   RotateCcw,
+  Brain,
+  Plus,
 } from 'lucide-react';
 import { AppSettings, Conversation } from '../types';
 
@@ -44,11 +46,38 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [aboutUser, setAboutUser] = useState(settings.customInstructions.aboutUser);
   const [responsePref, setResponsePref] = useState(settings.customInstructions.responsePreferences);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [newMemoryText, setNewMemoryText] = useState('');
 
   const isRtl = settings.language === 'ar';
   const archivedConversations = conversations.filter((c) => c.isArchived);
 
   if (!isOpen) return null;
+
+  const handleAddMemory = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMemoryText.trim()) return;
+    const newMem = {
+      id: 'mem-' + Math.random().toString(36).substring(2, 9),
+      content: newMemoryText.trim(),
+      createdAt: Date.now(),
+    };
+    onUpdateSettings({
+      memories: [newMem, ...(settings.memories || [])],
+    });
+    setNewMemoryText('');
+  };
+
+  const handleDeleteMemory = (id: string) => {
+    onUpdateSettings({
+      memories: (settings.memories || []).filter((m) => m.id !== id),
+    });
+  };
+
+  const handleClearAllMemories = () => {
+    if (confirm(isRtl ? 'هل أنت متأكد من مسح كافة الذكريات؟' : 'Clear all memories?')) {
+      onUpdateSettings({ memories: [] });
+    }
+  };
 
   const handleSaveInstructions = () => {
     onUpdateSettings({
@@ -117,6 +146,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               >
                 <Sliders size={15} />
                 <span>{isRtl ? 'التخصيص' : 'Personalization'}</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('memory')}
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium w-full text-start transition-colors ${
+                  activeTab === 'memory'
+                    ? 'bg-neutral-200 dark:bg-white/10 text-[#0d0d0d] dark:text-[#ececec]'
+                    : 'text-[#5d5d5d] dark:text-[#b4b4b4] hover:bg-neutral-100 dark:hover:bg-white/5'
+                }`}
+              >
+                <Brain size={15} />
+                <span>{isRtl ? 'الذاكرة (Memory)' : 'Memory'}</span>
+                {settings.memories?.length > 0 && (
+                  <span className="ms-auto text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-400 font-mono">
+                    {settings.memories.length}
+                  </span>
+                )}
               </button>
 
               <button
@@ -380,6 +426,99 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       <span>{isRtl ? 'حفظ التعليمات' : 'Save Instructions'}</span>
                     )}
                   </button>
+                </div>
+              </div>
+            )}
+
+            {/* Memory Tab */}
+            {activeTab === 'memory' && (
+              <div className="space-y-5">
+                {/* Memory Master Toggle */}
+                <div className="flex items-center justify-between p-3.5 rounded-xl bg-neutral-50 dark:bg-white/5 border border-neutral-200 dark:border-white/10">
+                  <div className="pe-4">
+                    <div className="font-semibold text-xs flex items-center gap-2">
+                      <Brain size={15} className="text-purple-400" />
+                      <span>{isRtl ? 'تفعيل الذاكرة (Memory)' : 'Enable Memory'}</span>
+                    </div>
+                    <div className="text-[11px] text-[#8e8e8e] mt-0.5">
+                      {isRtl
+                        ? 'يسمح لـ ChatGPT بتذكر التفاصيل والتفضيلات المهمة عبر كافة المحادثات.'
+                        : 'Allows ChatGPT to remember details across chats to provide customized responses.'}
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={settings.memoryEnabled}
+                    onChange={(e) => onUpdateSettings({ memoryEnabled: e.target.checked })}
+                    className="w-4 h-4 accent-purple-500 rounded cursor-pointer"
+                  />
+                </div>
+
+                {/* Add New Memory Manually */}
+                <form onSubmit={handleAddMemory} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newMemoryText}
+                    onChange={(e) => setNewMemoryText(e.target.value)}
+                    placeholder={isRtl ? 'أضف معلومة جديدة ليتذكرها ChatGPT...' : 'Add a detail for ChatGPT to remember...'}
+                    className="flex-1 px-3 py-2 rounded-xl border border-neutral-300 dark:border-white/10 bg-transparent text-xs focus:outline-none focus:border-purple-500"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newMemoryText.trim()}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-semibold text-xs transition-colors shrink-0"
+                  >
+                    <Plus size={14} />
+                    <span>{isRtl ? 'إضافة' : 'Add'}</span>
+                  </button>
+                </form>
+
+                {/* Memories List */}
+                <div>
+                  <div className="flex items-center justify-between pb-2 border-b border-neutral-200 dark:border-white/10 text-xs">
+                    <span className="font-semibold">
+                      {isRtl ? 'الذكريات المحفوظة' : 'Saved Memories'} ({settings.memories?.length || 0})
+                    </span>
+                    {settings.memories && settings.memories.length > 0 && (
+                      <button
+                        onClick={handleClearAllMemories}
+                        className="text-[11px] text-red-500 hover:underline"
+                      >
+                        {isRtl ? 'مسح كافة الذكريات' : 'Clear all'}
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-2 mt-2 max-h-56 overflow-y-auto">
+                    {settings.memories && settings.memories.length > 0 ? (
+                      settings.memories.map((mem) => (
+                        <div
+                          key={mem.id}
+                          className="flex items-start justify-between p-2.5 rounded-xl border border-neutral-200 dark:border-white/10 bg-white dark:bg-[#1a1a1a] hover:border-purple-400/40 transition-colors group"
+                        >
+                          <div className="min-w-0 flex-1 pe-3">
+                            <p className="text-xs text-[#0d0d0d] dark:text-[#ececec] leading-relaxed">
+                              {mem.content}
+                            </p>
+                            <span className="text-[10px] text-[#8e8e8e]">
+                              {new Date(mem.createdAt).toLocaleDateString(isRtl ? 'ar-EG' : 'en-US')}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteMemory(mem.id)}
+                            className="p-1 rounded text-[#8e8e8e] hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                            title={isRtl ? 'حذف هذه الذكرى' : 'Delete memory'}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="py-8 text-center text-xs text-[#8e8e8e]">
+                        {isRtl ? 'لا توجد ذكريات محفوظة حالياً' : 'No memories saved yet'}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}

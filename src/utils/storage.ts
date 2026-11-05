@@ -1,9 +1,15 @@
-import { Conversation, AppSettings, UserProfile } from '../types';
+import { Conversation, AppSettings, UserProfile, Folder, MemoryItem } from '../types';
 
 const CONVERSATIONS_KEY = 'chatgpt_conversations_v1';
 const CURRENT_ID_KEY = 'chatgpt_current_conv_id';
 const SETTINGS_KEY = 'chatgpt_settings_v1';
 const PROFILE_KEY = 'chatgpt_profile_v1';
+const FOLDERS_KEY = 'chatgpt_folders_v1';
+
+export const initialFolders: Folder[] = [
+  { id: 'folder-1', name: 'مشاريع البرمجة والتطوير', color: '#10a37f', createdAt: Date.now() - 86400000 * 5 },
+  { id: 'folder-2', name: 'أبحاث ودراسات الذكاء الاصطناعي', color: '#8b5cf6', createdAt: Date.now() - 86400000 * 3 },
+];
 
 export const defaultSettings: AppSettings = {
   theme: 'dark',
@@ -15,6 +21,12 @@ export const defaultSettings: AppSettings = {
   voice: 'Juniper',
   soundEnabled: true,
   streamResponse: true,
+  memoryEnabled: true,
+  memories: [
+    { id: 'mem-1', content: 'يفضل المستخدم استخدام TypeScript و React و Tailwind CSS في بناء واجهات الويب الحديثة.', createdAt: Date.now() - 86400000 * 2 },
+    { id: 'mem-2', content: 'يفضل الإجابات الدقيقة المدعومة بالأكواد النظيفة مع الشرح المباشر وتجنب الحشو.', createdAt: Date.now() - 86400000 * 1 },
+    { id: 'mem-3', content: 'يعمل على مشاريع ذكاء اصطناعي وتطبيقات سحابية متقدمة (Suly AI).', createdAt: Date.now() - 3600000 * 12 },
+  ],
 };
 
 export const defaultProfile: UserProfile = {
@@ -206,6 +218,27 @@ export function loadProfile(): UserProfile {
 export function saveProfile(profile: UserProfile) {
   try {
     localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  } catch (e) {
+    console.error(e);
+  }
+}
+
+export function loadFolders(): Folder[] {
+  try {
+    const raw = localStorage.getItem(FOLDERS_KEY);
+    if (!raw) {
+      saveFolders(initialFolders);
+      return initialFolders;
+    }
+    return JSON.parse(raw);
+  } catch {
+    return initialFolders;
+  }
+}
+
+export function saveFolders(folders: Folder[]) {
+  try {
+    localStorage.setItem(FOLDERS_KEY, JSON.stringify(folders));
   } catch (e) {
     console.error(e);
   }

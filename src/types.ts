@@ -2,9 +2,24 @@ export interface Attachment {
   id: string;
   name: string;
   mimeType: string;
-  data: string; // Base64 or object URL
+  data: string; // Base64 or object URL or text content
   size?: number;
   type: 'image' | 'file';
+  textContent?: string;
+}
+
+export interface Folder {
+  id: string;
+  name: string;
+  color?: string;
+  createdAt: number;
+  conversationIds?: string[];
+}
+
+export interface MemoryItem {
+  id: string;
+  content: string;
+  createdAt: number;
 }
 
 export interface CustomGpt {
@@ -47,6 +62,7 @@ export interface Conversation {
   messages: Message[];
   model: string;
   customGptId?: string;
+  folderId?: string;
   isPinned?: boolean;
   isArchived?: boolean;
 }
@@ -78,4 +94,14 @@ export interface AppSettings {
   soundEnabled: boolean;
   streamResponse: boolean;
   zenMode?: boolean;
+  memoryEnabled: boolean;
+  memories: MemoryItem[];
+}
+
+export interface CanvasState {
+  isOpen: boolean;
+  title: string;
+  content: string;
+  language: string;
+  type: 'code' | 'document';
 }

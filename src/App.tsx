@@ -9,6 +9,8 @@ import { SettingsModal } from './components/SettingsModal';
 import { ShareModal } from './components/ShareModal';
 import { SearchModal } from './components/SearchModal';
 import { GptsStoreModal } from './components/GptsStoreModal';
+import { CanvasPanel } from './components/CanvasPanel';
+import { FileInspectorModal } from './components/FileInspectorModal';
 import {
   Conversation,
   Message,
@@ -17,6 +19,8 @@ import {
   UserProfile,
   Attachment,
   CustomGpt,
+  Folder,
+  CanvasState,
 } from './types';
 import {
   loadConversations,
@@ -27,6 +31,8 @@ import {
   saveSettings,
   loadProfile,
   saveProfile,
+  loadFolders,
+  saveFolders,
 } from './utils/storage';
 
 const DEFAULT_MODELS: ModelOption[] = [
@@ -79,6 +85,19 @@ export default function App() {
   const [isTemporary, setIsTemporary] = useState(false);
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
   const [profile, setProfile] = useState<UserProfile>(() => loadProfile());
+  const [folders, setFolders] = useState<Folder[]>(() => loadFolders());
+
+  // Canvas Workspace State
+  const [canvasState, setCanvasState] = useState<CanvasState>({
+    isOpen: false,
+    title: '',
+    content: '',
+    language: 'typescript',
+    type: 'code',
+  });
+
+  // Document/CSV Inspector Modal State
+  const [inspectingFile, setInspectingFile] = useState<Attachment | null>(null);
 
   // Modal states
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
@@ -131,6 +150,11 @@ export default function App() {
   useEffect(() => {
     saveSettings(settings);
   }, [settings]);
+
+  // Save folders
+  useEffect(() => {
+    saveFolders(folders);
+  }, [folders]);
 
   // Fetch models from backend if available
   useEffect(() => {
@@ -258,6 +282,71 @@ export default function App() {
     }
   };
 
+  // Folder & Projects handlers
+  const handleCreateFolder = (name: string) => {
+    const newFolder: Folder = {
+      id: 'folder-' + Math.random().toString(36).substring(2, 9),
+      name,
+      createdAt: Date.now(),
+      conversationIds: [],
+    };
+    setFolders((prev) => [...prev, newFolder]);
+  };
+
+  const handleDeleteFolder = (folderId: string) => {
+    setFolders((prev) => prev.filter((f) => f.id !== folderId));
+    setConversations((prev) =>
+      prev.map((c) => (c.folderId === folderId ? { ...c, folderId: undefined } : c))
+    );
+  };
+
+  const handleMoveConvToFolder = (convId: string, folderId?: string) => {
+    setConversations((prev) =>
+      prev.map((c) => (c.id === convId ? { ...c, folderId } : c))
+    );
+    setFolders((prev) =>
+      prev.map((f) => {
+        const currentList = f.conversationIds || [];
+        const without = currentList.filter((id: string) => id !== convId);
+        if (f.id === folderId) {
+          return { ...f, conversationIds: [...without, convId] };
+        }
+        return { ...f, conversationIds: without };
+      })
+    );
+  };
+
+  // Canvas Workspace handlers
+  const handleOpenCanvas = (
+    type: 'code' | 'document' = 'code',
+    initialTitle?: string,
+    initialContent?: string,
+    initialLanguage = 'typescript'
+  ) => {
+    setCanvasState({
+      isOpen: true,
+      type,
+      title: initialTitle || (type === 'code' ? 'script.ts' : isRtl ? 'مستند جديد' : 'New Document'),
+      content:
+        initialContent ||
+        (type === 'code'
+          ? '// Write or edit code here\nconsole.log("Hello Canvas!");'
+          : isRtl
+          ? '# مستند جديد\n\nابدأ كتابة النص هنا...'
+          : '# New Document\n\nStart writing here...'),
+      language: initialLanguage,
+    });
+  };
+
+  const handleUpdateCanvas = (partial: Partial<CanvasState>) => {
+    setCanvasState((prev) => ({ ...prev, ...partial }));
+  };
+
+  const handleAskCanvas = (prompt: string) => {
+    const userMsg = `${prompt}\n\n\`\`\`${canvasState.language}\n${canvasState.content}\n\`\`\``;
+    handleSendMessage(userMsg);
+  };
+
   // Clear all chats
   const handleClearAllChats = () => {
     setConversations([]);
@@ -353,6 +442,7 @@ export default function App() {
           model: selectedModel,
           webSearch,
           reasoning,
+          memories: settings.memoryEnabled ? settings.memories : [],
           customInstructions: `${settings.customInstructions.aboutUser}\n${settings.customInstructions.responsePreferences}`.trim(),
         }),
         signal: controller.signal,
@@ -578,6 +668,10 @@ export default function App() {
         onRenameConv={handleRenameConv}
         onPinConv={handlePinConv}
         onArchiveConv={handleArchiveConv}
+        folders={folders}
+        onCreateFolder={handleCreateFolder}
+        onDeleteFolder={handleDeleteFolder}
+        onMoveConvToFolder={handleMoveConvToFolder}
         onOpenSettings={(tab) => {
           setSettingsTab(tab || 'general');
           setIsSettingsOpen(true);
@@ -609,38 +703,67 @@ export default function App() {
           onUpdateSettings={(newSt) => setSettings((prev) => ({ ...prev, ...newSt }))}
         />
 
-        {/* Central Content Viewport */}
-        <div className="flex-1 overflow-y-auto flex flex-col">
-          {!currentConversation || currentConversation.messages.length === 0 ? (
-            <WelcomeScreen
-              onSelectPrompt={(p) => handleSendMessage(p)}
-              isRtl={isRtl}
-            />
-          ) : (
-            <div className="flex-1 pb-4">
-              {currentConversation.messages.map((msg, idx) => (
-                <ChatMessage
-                  key={msg.id}
-                  message={msg}
-                  isLast={idx === currentConversation.messages.length - 1}
-                  onRegenerate={handleRegenerate}
-                  onEdit={(newText) => handleEditUserMessage(msg.id, newText)}
+        {/* Central Workspace: Chat Column + Optional Canvas Panel */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Chat Column */}
+          <div
+            className={`flex flex-col h-full overflow-hidden transition-all duration-300 ${
+              canvasState.isOpen
+                ? 'w-full md:w-1/2 lg:w-5/12 border-e border-[#e5e5e5] dark:border-[#2f2f2f]'
+                : 'w-full'
+            }`}
+          >
+            {/* Central Content Viewport */}
+            <div className="flex-1 overflow-y-auto flex flex-col">
+              {!currentConversation || currentConversation.messages.length === 0 ? (
+                <WelcomeScreen
+                  onSelectPrompt={(p) => handleSendMessage(p)}
                   isRtl={isRtl}
                 />
-              ))}
-              <div ref={messagesEndRef} />
+              ) : (
+                <div className="flex-1 pb-4">
+                  {currentConversation.messages.map((msg, idx) => (
+                    <ChatMessage
+                      key={msg.id}
+                      message={msg}
+                      isLast={idx === currentConversation.messages.length - 1}
+                      onRegenerate={handleRegenerate}
+                      onEdit={(newText) => handleEditUserMessage(msg.id, newText)}
+                      onInspectAttachment={(att) => setInspectingFile(att)}
+                      onOpenInCanvas={(code, lang) => handleOpenCanvas('code', undefined, code, lang)}
+                      isRtl={isRtl}
+                    />
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
+              )}
+            </div>
+
+            {/* Floating Input Box */}
+            <ChatInput
+              onSendMessage={handleSendMessage}
+              isGenerating={isGenerating}
+              onStopGenerating={handleStopGenerating}
+              onOpenVoiceMode={() => setIsVoiceOpen(true)}
+              onInspectFile={(att) => setInspectingFile(att)}
+              onOpenCanvas={(type) => handleOpenCanvas(type)}
+              isRtl={isRtl}
+            />
+          </div>
+
+          {/* Canvas Side-by-Side Panel */}
+          {canvasState.isOpen && (
+            <div className="flex-1 h-full overflow-hidden">
+              <CanvasPanel
+                canvas={canvasState}
+                onClose={() => setCanvasState((prev) => ({ ...prev, isOpen: false }))}
+                onUpdateCanvas={handleUpdateCanvas}
+                onAskCanvas={handleAskCanvas}
+                isRtl={isRtl}
+              />
             </div>
           )}
         </div>
-
-        {/* Floating Input Box */}
-        <ChatInput
-          onSendMessage={handleSendMessage}
-          isGenerating={isGenerating}
-          onStopGenerating={handleStopGenerating}
-          onOpenVoiceMode={() => setIsVoiceOpen(true)}
-          isRtl={isRtl}
-        />
       </div>
 
       {/* Modals */}
@@ -684,6 +807,17 @@ export default function App() {
         isOpen={isGptsStoreOpen}
         onClose={() => setIsGptsStoreOpen(false)}
         onSelectGpt={handleSelectGpt}
+        isRtl={isRtl}
+      />
+
+      <FileInspectorModal
+        isOpen={!!inspectingFile}
+        attachment={inspectingFile}
+        onClose={() => setInspectingFile(null)}
+        onAskAboutFile={(prompt, att) => {
+          setInspectingFile(null);
+          handleSendMessage(prompt, [att]);
+        }}
         isRtl={isRtl}
       />
     </div>

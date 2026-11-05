@@ -15,10 +15,15 @@ import {
   LogOut,
   Sparkles,
   ChevronRight,
+  ChevronDown,
   PanelLeftClose,
   PanelLeft,
+  Folder as FolderIcon,
+  FolderOpen,
+  FolderPlus,
+  FolderSymlink,
 } from 'lucide-react';
-import { Conversation, UserProfile, AppSettings } from '../types';
+import { Conversation, UserProfile, AppSettings, Folder } from '../types';
 import { groupConversations } from '../utils/storage';
 
 interface SidebarProps {
@@ -36,6 +41,10 @@ interface SidebarProps {
   onOpenSearch: () => void;
   onOpenGptsStore: () => void;
   onShareConv: (id: string) => void;
+  folders: Folder[];
+  onCreateFolder: (name: string) => void;
+  onDeleteFolder: (id: string) => void;
+  onMoveConvToFolder: (convId: string, folderId?: string) => void;
   userProfile: UserProfile;
   settings: AppSettings;
 }
@@ -55,6 +64,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenSearch,
   onOpenGptsStore,
   onShareConv,
+  folders,
+  onCreateFolder,
+  onDeleteFolder,
+  onMoveConvToFolder,
   userProfile,
   settings,
 }) => {
@@ -63,17 +76,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [editTitle, setEditTitle] = useState('');
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
+  // Folder states
+  const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({
+    'folder-1': true,
+  });
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [folderPickerConvId, setFolderPickerConvId] = useState<string | null>(null);
+
   const menuRef = useRef<HTMLDivElement>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
   const isRtl = settings.language === 'ar';
-  const grouped = groupConversations(conversations);
+  // Exclude chats inside custom folders from main history groups
+  const unfiledConvs = conversations.filter((c) => !c.folderId);
+  const grouped = groupConversations(unfiledConvs);
 
   // Close menus on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpenId(null);
+        setFolderPickerConvId(null);
       }
       if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
         setProfileMenuOpen(false);
@@ -94,6 +118,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
       onRenameConv(id, editTitle.trim());
     }
     setEditingId(null);
+  };
+
+  const handleCreateFolderSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newFolderName.trim()) {
+      onCreateFolder(newFolderName.trim());
+      setNewFolderName('');
+      setIsCreatingFolder(false);
+    }
+  };
+
+  const toggleFolder = (folderId: string) => {
+    setExpandedFolders((prev) => ({ ...prev, [folderId]: !prev[folderId] }));
   };
 
   const renderConvItem = (conv: Conversation) => {
@@ -140,6 +177,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={(e) => {
                 e.stopPropagation();
                 setMenuOpenId(menuOpenId === conv.id ? null : conv.id);
+                setFolderPickerConvId(null);
               }}
               className="p-1 rounded-md text-[#8e8e8e] hover:text-[#ececec] hover:bg-[#2a2a2a] transition-colors"
               title={isRtl ? 'المزيد من الخيارات' : 'More options'}
@@ -151,7 +189,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {menuOpenId === conv.id && (
               <div
                 ref={menuRef}
-                className="absolute right-0 top-full mt-1 w-44 z-50 bg-white dark:bg-[#212121] border border-neutral-200 dark:border-neutral-700/80 rounded-xl shadow-xl py-1 text-xs text-[#0d0d0d] dark:text-[#ececec]"
+                className="absolute right-0 top-full mt-1 w-48 z-50 bg-white dark:bg-[#212121] border border-neutral-200 dark:border-neutral-700/80 rounded-xl shadow-xl py-1 text-xs text-[#0d0d0d] dark:text-[#ececec]"
                 onClick={(e) => e.stopPropagation()}
               >
                 <button
@@ -181,6 +219,53 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <Pin size={13} />
                   <span>{conv.isPinned ? (isRtl ? 'إلغاء التثبيت' : 'Unpin') : isRtl ? 'تثبيت' : 'Pin'}</span>
                 </button>
+
+                {/* Move to folder */}
+                <div className="relative">
+                  <button
+                    onClick={() => setFolderPickerConvId(folderPickerConvId === conv.id ? null : conv.id)}
+                    className="flex items-center justify-between w-full px-3 py-2 hover:bg-neutral-100 dark:hover:bg-[#2f2f2f] transition-colors text-start"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <FolderSymlink size={13} />
+                      <span>{isRtl ? 'نقل إلى مجلد...' : 'Move to folder...'}</span>
+                    </div>
+                    <ChevronRight size={12} className={isRtl ? 'rotate-180' : ''} />
+                  </button>
+
+                  {folderPickerConvId === conv.id && (
+                    <div className="p-1 bg-neutral-50 dark:bg-[#1a1a1a] rounded-lg mx-2 my-1 border border-neutral-200 dark:border-white/5 space-y-0.5">
+                      {conv.folderId && (
+                        <button
+                          onClick={() => {
+                            onMoveConvToFolder(conv.id, undefined);
+                            setMenuOpenId(null);
+                            setFolderPickerConvId(null);
+                          }}
+                          className="w-full text-start px-2 py-1.5 rounded text-[11px] hover:bg-neutral-200 dark:hover:bg-white/5 text-amber-500"
+                        >
+                          {isRtl ? 'إزالة من المجلد' : 'Remove from folder'}
+                        </button>
+                      )}
+                      {folders.map((f) => (
+                        <button
+                          key={f.id}
+                          onClick={() => {
+                            onMoveConvToFolder(conv.id, f.id);
+                            setMenuOpenId(null);
+                            setFolderPickerConvId(null);
+                          }}
+                          className={`w-full text-start px-2 py-1.5 rounded text-[11px] hover:bg-neutral-200 dark:hover:bg-white/5 truncate ${
+                            conv.folderId === f.id ? 'text-emerald-500 font-semibold' : ''
+                          }`}
+                        >
+                          📁 {f.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <button
                   onClick={() => {
                     onArchiveConv(conv.id);
@@ -280,8 +365,97 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
-        {/* Conversation History List */}
+        {/* Conversation & Folders Scrollable List */}
         <div className="flex-1 overflow-y-auto px-2 py-2 space-y-4">
+          {/* Folders & Workspaces Section */}
+          <div>
+            <div className="flex items-center justify-between px-2.5 pb-1">
+              <span className="text-[11px] font-semibold tracking-wider text-[#8e8e8e] uppercase">
+                {isRtl ? 'المجلدات والمشاريع' : 'Folders & Projects'}
+              </span>
+              <button
+                onClick={() => setIsCreatingFolder(true)}
+                className="p-1 rounded text-[#8e8e8e] hover:text-inherit hover:bg-neutral-200 dark:hover:bg-white/5 transition-colors"
+                title={isRtl ? 'إنشاء مجلد جديد' : 'New folder'}
+              >
+                <FolderPlus size={13} />
+              </button>
+            </div>
+
+            {/* Inline New Folder Input */}
+            {isCreatingFolder && (
+              <form onSubmit={handleCreateFolderSubmit} className="px-2 pb-2">
+                <input
+                  type="text"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  placeholder={isRtl ? 'اسم المجلد...' : 'Folder name...'}
+                  autoFocus
+                  onBlur={() => setIsCreatingFolder(false)}
+                  className="w-full px-2 py-1 rounded-md text-xs bg-white dark:bg-[#212121] border border-emerald-500 text-inherit focus:outline-none"
+                />
+              </form>
+            )}
+
+            {/* Folders List */}
+            <div className="space-y-1">
+              {folders.map((folder) => {
+                const folderConvs = conversations.filter((c) => c.folderId === folder.id && !c.isArchived);
+                const isExpanded = !!expandedFolders[folder.id];
+
+                return (
+                  <div key={folder.id} className="rounded-lg overflow-hidden">
+                    <div
+                      onClick={() => toggleFolder(folder.id)}
+                      className="group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold text-[#5d5d5d] dark:text-[#b4b4b4] hover:bg-[#ececec] dark:hover:bg-[#212121] transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {isExpanded ? (
+                          <FolderOpen size={14} className="text-emerald-500 shrink-0" />
+                        ) : (
+                          <FolderIcon size={14} className="text-emerald-500 shrink-0" />
+                        )}
+                        <span className="truncate">{folder.name}</span>
+                        <span className="text-[10px] text-[#8e8e8e] font-normal">({folderConvs.length})</span>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(isRtl ? 'هل تريد حذف هذا المجلد؟' : 'Delete folder?')) {
+                              onDeleteFolder(folder.id);
+                            }
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-[#8e8e8e] hover:text-red-500 transition-opacity"
+                          title={isRtl ? 'حذف المجلد' : 'Delete folder'}
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                        {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} className={isRtl ? 'rotate-180' : ''} />}
+                      </div>
+                    </div>
+
+                    {/* Sub-conversations in folder */}
+                    {isExpanded && (
+                      <div className="ps-3 pe-1 pt-0.5 space-y-0.5 border-s border-neutral-200 dark:border-white/5 ms-3">
+                        {folderConvs.length > 0 ? (
+                          folderConvs.map(renderConvItem)
+                        ) : (
+                          <div className="py-1 text-[11px] text-[#8e8e8e] italic px-2">
+                            {isRtl ? 'مجلد فارغ' : 'Empty folder'}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="h-px bg-neutral-200 dark:bg-white/5 my-2" />
+
           {/* Pinned */}
           {grouped.pinned.length > 0 && (
             <div>
@@ -411,6 +585,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 >
                   <Sliders size={15} className="text-[#8e8e8e]" />
                   <span>{isRtl ? 'تخصيص ChatGPT' : 'Customize ChatGPT'}</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    onOpenSettings('memory');
+                    setProfileMenuOpen(false);
+                  }}
+                  className="flex items-center gap-3 w-full px-3 py-2.5 hover:bg-neutral-100 dark:hover:bg-[#2f2f2f] transition-colors text-start"
+                >
+                  <Sparkles size={15} className="text-emerald-500" />
+                  <span>{isRtl ? 'إدارة الذاكرة (Memory)' : 'Manage Memory'}</span>
                 </button>
 
                 <button

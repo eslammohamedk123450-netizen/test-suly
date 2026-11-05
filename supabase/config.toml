@@ -1,0 +1,32 @@
+# SULY AI - Local Supabase Configuration (Phase 2 Foundation)
+# This file is strictly for local containerized development and testing.
+# It is NOT linked to any remote or production hosted Supabase project.
+
+project_id = "suly-ai-local"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:3000"
+additional_redirect_urls = ["https://127.0.0.1:3000"]
+jwt_expiry = 3600
+enable_signup = true
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[studio]
+enabled = true
+port = 54323

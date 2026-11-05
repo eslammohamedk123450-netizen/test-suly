@@ -6,3 +6,11 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Flutter & Dart artifacts
+.dart_tool/
+apps/suly_app/.dart_tool/
+apps/suly_app/build/
+apps/suly_app/.flutter-plugins
+apps/suly_app/.flutter-plugins-dependencies
+apps/suly_app/.packages

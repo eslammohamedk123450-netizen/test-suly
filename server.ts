@@ -137,6 +137,14 @@ Respond naturally in the same language the user writes (e.g., Arabic if Arabic, 
     return;
   }
 
+  const startTime = Date.now();
+  const lastUserMsg = messages[messages.length - 1]?.content || '';
+
+  // Check if user is asking for image generation
+  const isImageRequest = /(?:ارسم|صورة|أنشئ صورة|صمم صورة|توليد صورة|dall-?e|generate (?:an? )?image|draw|picture of|create (?:an? )?image)/i.test(lastUserMsg);
+
+  let imageSent = false;
+
   try {
     // Format conversation history for Gemini
     const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> }> = [];
@@ -179,6 +187,15 @@ Respond naturally in the same language the user writes (e.g., Arabic if Arabic, 
       config.tools = [{ googleSearch: {} }];
     }
 
+    let fullResponseText = '';
+
+    if (isImageRequest && !imageSent) {
+      const cleanPrompt = lastUserMsg.replace(/(?:ارسم|صورة|أنشئ صورة|صمم صورة|توليد صورة|dall-?e|generate (?:an? )?image|draw|picture of|create (?:an? )?image)/gi, '').trim() || 'futuristic glowing cityscape at sunset';
+      const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=1024&height=1024&nologo=true&enhance=true`;
+      sendEvent({ type: 'image', url: imageUrl });
+      imageSent = true;
+    }
+
     // Stream from gemini-3.8-flash (ultra-fast flagship model)
     const responseStream = await ai.models.generateContentStream({
       model: 'gemini-3.8-flash',
@@ -187,12 +204,16 @@ Respond naturally in the same language the user writes (e.g., Arabic if Arabic, 
     });
 
     for await (const chunk of responseStream) {
-      // Chunk text extraction
       const text = chunk.text;
       if (text) {
+        fullResponseText += text;
         sendEvent({ type: 'content', text });
       }
     }
+
+    const durationMs = Date.now() - startTime;
+    const tokenCount = Math.max(Math.round(fullResponseText.split(/\s+/).length * 1.3), 1);
+    sendEvent({ type: 'metrics', tokens: tokenCount, durationMs });
 
     sendEvent({ type: 'done', finishReason: 'STOP' });
     res.end();
@@ -214,11 +235,22 @@ Respond naturally in the same language the user writes (e.g., Arabic if Arabic, 
 
 أخبرني بما تود البدء فيه أو أرسل لي التفاصيل وسأتابع معك خطوة بخطوة! ✨`;
 
+    if (isImageRequest && !imageSent) {
+      const cleanPrompt = lastUserMsg.replace(/(?:ارسم|صورة|أنشئ صورة|صمم صورة|توليد صورة|dall-?e|generate (?:an? )?image|draw|picture of|create (?:an? )?image)/gi, '').trim() || 'futuristic glowing cityscape at sunset';
+      const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(cleanPrompt)}?width=1024&height=1024&nologo=true&enhance=true`;
+      sendEvent({ type: 'image', url: imageUrl });
+      imageSent = true;
+    }
+
     const words = fallbackAnswer.split(' ');
     for (let i = 0; i < words.length; i++) {
       sendEvent({ type: 'content', text: (i === 0 ? '' : ' ') + words[i] });
       await new Promise((r) => setTimeout(r, 20));
     }
+
+    const durationMs = Date.now() - startTime;
+    const tokenCount = Math.max(Math.round(fallbackAnswer.split(/\s+/).length * 1.3), 1);
+    sendEvent({ type: 'metrics', tokens: tokenCount, durationMs });
 
     sendEvent({ type: 'done', finishReason: 'STOP' });
     res.end();

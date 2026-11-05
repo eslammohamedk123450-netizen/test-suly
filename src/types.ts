@@ -7,6 +7,24 @@ export interface Attachment {
   type: 'image' | 'file';
 }
 
+export interface CustomGpt {
+  id: string;
+  name: string;
+  tagline: string;
+  description: string;
+  avatar: string;
+  category: 'Featured' | 'DALL·E' | 'Writing' | 'Productivity' | 'Coding' | 'Education';
+  author: string;
+  capabilities: string[];
+  systemPrompt: string;
+  starterPrompts: string[];
+}
+
+export interface MessageMetrics {
+  tokenCount: number;
+  durationMs: number;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -17,6 +35,8 @@ export interface Message {
   isStreaming?: boolean;
   error?: string;
   modelUsed?: string;
+  generatedImageUrl?: string;
+  metrics?: MessageMetrics;
 }
 
 export interface Conversation {
@@ -26,6 +46,7 @@ export interface Conversation {
   updatedAt: number;
   messages: Message[];
   model: string;
+  customGptId?: string;
   isPinned?: boolean;
   isArchived?: boolean;
 }
@@ -56,4 +77,5 @@ export interface AppSettings {
   voice: 'Breeze' | 'Cove' | 'Ember' | 'Juniper' | 'Sky';
   soundEnabled: boolean;
   streamResponse: boolean;
+  zenMode?: boolean;
 }

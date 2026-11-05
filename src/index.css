@@ -136,3 +136,27 @@ textarea {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.2; transform: scale(0.85); }
 }
+
+/* Print / PDF Export Styles */
+@media print {
+  aside, header, footer, [role="dialog"], button, textarea, .no-print {
+    display: none !important;
+  }
+  body, html, #root {
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+  .chatgpt-prose {
+    font-size: 11pt !important;
+    line-height: 1.5 !important;
+  }
+  pre {
+    background: #f1f5f9 !important;
+    color: #0f172a !important;
+    border: 1px solid #cbd5e1 !important;
+    white-space: pre-wrap !important;
+  }
+}
+

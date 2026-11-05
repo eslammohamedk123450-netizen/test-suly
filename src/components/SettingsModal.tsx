@@ -11,6 +11,8 @@ import {
   Trash2,
   Download,
   Check,
+  Archive,
+  RotateCcw,
 } from 'lucide-react';
 import { AppSettings, Conversation } from '../types';
 
@@ -21,6 +23,8 @@ interface SettingsModalProps {
   onUpdateSettings: (newSettings: Partial<AppSettings>) => void;
   conversations: Conversation[];
   onClearAllChats: () => void;
+  onUnarchiveConv?: (id: string) => void;
+  onDeleteConv?: (id: string) => void;
   initialTab?: string;
 }
 
@@ -31,6 +35,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onUpdateSettings,
   conversations,
   onClearAllChats,
+  onUnarchiveConv,
+  onDeleteConv,
   initialTab = 'general',
 }) => {
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -40,6 +46,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   const isRtl = settings.language === 'ar';
+  const archivedConversations = conversations.filter((c) => c.isArchived);
 
   if (!isOpen) return null;
 
@@ -84,7 +91,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Content Body: Left Tabs + Right Panel */}
-        <div className="flex flex-col sm:flex-row flex-1 min-h-[380px] overflow-hidden">
+        <div className="flex flex-col sm:flex-row flex-1 min-h-[400px] overflow-hidden">
           {/* Tabs Sidebar */}
           <div className="w-full sm:w-48 p-2 border-b sm:border-b-0 sm:border-e border-neutral-200 dark:border-white/10 bg-neutral-50/50 dark:bg-black/10 shrink-0">
             <div className="flex sm:flex-col gap-1 overflow-x-auto">
@@ -122,6 +129,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               >
                 <Volume2 size={15} />
                 <span>{isRtl ? 'الصوت والكلام' : 'Speech'}</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('archived')}
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium w-full text-start transition-colors ${
+                  activeTab === 'archived'
+                    ? 'bg-neutral-200 dark:bg-white/10 text-[#0d0d0d] dark:text-[#ececec]'
+                    : 'text-[#5d5d5d] dark:text-[#b4b4b4] hover:bg-neutral-100 dark:hover:bg-white/5'
+                }`}
+              >
+                <Archive size={15} />
+                <span>{isRtl ? 'المحادثات المؤرشفة' : 'Archived Chats'}</span>
+                {archivedConversations.length > 0 && (
+                  <span className="ms-auto text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-500 font-mono">
+                    {archivedConversations.length}
+                  </span>
+                )}
               </button>
 
               <button
@@ -240,6 +264,62 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </button>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* Archived Chats Tab */}
+            {activeTab === 'archived' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-neutral-200 dark:border-white/10">
+                  <span className="font-semibold">{isRtl ? 'إدارة المحادثات المؤرشفة' : 'Manage Archived Chats'}</span>
+                  <span className="text-[11px] text-[#8e8e8e]">
+                    {archivedConversations.length} {isRtl ? 'محادثة' : 'chats'}
+                  </span>
+                </div>
+
+                {archivedConversations.length > 0 ? (
+                  <div className="space-y-2 max-h-72 overflow-y-auto">
+                    {archivedConversations.map((conv) => (
+                      <div
+                        key={conv.id}
+                        className="flex items-center justify-between p-3 rounded-xl border border-neutral-200 dark:border-white/10 bg-neutral-50 dark:bg-white/5"
+                      >
+                        <div className="min-w-0 flex-1 pe-3">
+                          <div className="font-semibold truncate text-xs">{conv.title}</div>
+                          <div className="text-[10px] text-[#8e8e8e]">
+                            {new Date(conv.updatedAt).toLocaleDateString(isRtl ? 'ar-EG' : 'en-US')} · {conv.messages.length} {isRtl ? 'رسائل' : 'messages'}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {onUnarchiveConv && (
+                            <button
+                              onClick={() => onUnarchiveConv(conv.id)}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 text-xs font-medium transition-colors"
+                              title={isRtl ? 'فك الأرشفة واسترجاع' : 'Unarchive chat'}
+                            >
+                              <RotateCcw size={12} />
+                              <span>{isRtl ? 'استرجاع' : 'Unarchive'}</span>
+                            </button>
+                          )}
+                          {onDeleteConv && (
+                            <button
+                              onClick={() => onDeleteConv(conv.id)}
+                              className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"
+                              title={isRtl ? 'حذف نهائي' : 'Delete permanently'}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-12 text-center text-xs text-[#8e8e8e]">
+                    {isRtl ? 'لا توجد محادثات مؤرشفة حالياً' : 'No archived conversations'}
+                  </div>
+                )}
               </div>
             )}
 

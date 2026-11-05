@@ -34,6 +34,7 @@ interface SidebarProps {
   onArchiveConv: (id: string) => void;
   onOpenSettings: (tab?: string) => void;
   onOpenSearch: () => void;
+  onOpenGptsStore: () => void;
   onShareConv: (id: string) => void;
   userProfile: UserProfile;
   settings: AppSettings;
@@ -52,6 +53,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onArchiveConv,
   onOpenSettings,
   onOpenSearch,
+  onOpenGptsStore,
   onShareConv,
   userProfile,
   settings,
@@ -270,7 +272,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
 
           <button
-            onClick={() => onOpenSettings('models')}
+            onClick={onOpenGptsStore}
             className="flex items-center gap-3 w-full h-9 px-2.5 rounded-lg text-sm text-[#5d5d5d] dark:text-[#b4b4b4] hover:bg-[#ececec] dark:hover:bg-[#212121] hover:text-[#0d0d0d] dark:hover:text-[#ececec] transition-colors text-start"
           >
             <Compass size={17} className="text-[#8e8e8e]" />

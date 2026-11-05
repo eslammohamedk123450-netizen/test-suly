@@ -8,6 +8,7 @@ import { VoiceModeModal } from './components/VoiceModeModal';
 import { SettingsModal } from './components/SettingsModal';
 import { ShareModal } from './components/ShareModal';
 import { SearchModal } from './components/SearchModal';
+import { GptsStoreModal } from './components/GptsStoreModal';
 import {
   Conversation,
   Message,
@@ -15,6 +16,7 @@ import {
   AppSettings,
   UserProfile,
   Attachment,
+  CustomGpt,
 } from './types';
 import {
   loadConversations,
@@ -84,6 +86,7 @@ export default function App() {
   const [settingsTab, setSettingsTab] = useState<string>('general');
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isGptsStoreOpen, setIsGptsStoreOpen] = useState(false);
 
   // Streaming & Abort controller
   const [isGenerating, setIsGenerating] = useState(false);
@@ -214,6 +217,44 @@ export default function App() {
     );
     if (currentConvId === id) {
       setCurrentConvId(null);
+    }
+  };
+
+  // Unarchive conversation
+  const handleUnarchiveConv = (id: string) => {
+    setConversations((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, isArchived: false, updatedAt: Date.now() } : c))
+    );
+  };
+
+  // Select custom GPT from store
+  const handleSelectGpt = (gpt: CustomGpt, initialPrompt?: string) => {
+    const newConv: Conversation = {
+      id: 'conv-' + Math.random().toString(36).substring(2, 9),
+      title: `${gpt.avatar} ${gpt.name}`,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      model: 'gpt-4o',
+      customGptId: gpt.id,
+      messages: [
+        {
+          id: 'msg-' + Math.random().toString(36).substring(2, 9),
+          role: 'assistant',
+          content: isRtl
+            ? `مرحبًا! أنا **${gpt.name}**.\n\n${gpt.description}\n\nجاهز لمساعدتك فورًا، كيف يمكننا البدء؟`
+            : `Hello! I am **${gpt.name}**.\n\n${gpt.description}\n\nHow can I help you today?`,
+          createdAt: Date.now(),
+        },
+      ],
+    };
+
+    setConversations((prev) => [newConv, ...prev]);
+    setCurrentConvId(newConv.id);
+
+    if (initialPrompt) {
+      setTimeout(() => {
+        handleSendMessage(initialPrompt);
+      }, 150);
     }
   };
 
@@ -371,6 +412,32 @@ export default function App() {
                     };
                   })
                 );
+              } else if (parsed.type === 'image' && parsed.url) {
+                setConversations((prev) =>
+                  prev.map((c) => {
+                    if (c.id !== convId) return c;
+                    return {
+                      ...c,
+                      messages: c.messages.map((m) =>
+                        m.id === assistantMsgId ? { ...m, generatedImageUrl: parsed.url } : m
+                      ),
+                    };
+                  })
+                );
+              } else if (parsed.type === 'metrics') {
+                setConversations((prev) =>
+                  prev.map((c) => {
+                    if (c.id !== convId) return c;
+                    return {
+                      ...c,
+                      messages: c.messages.map((m) =>
+                        m.id === assistantMsgId
+                          ? { ...m, metrics: { tokenCount: parsed.tokens, durationMs: parsed.durationMs } }
+                          : m
+                      ),
+                    };
+                  })
+                );
               } else if (parsed.type === 'done') {
                 // Done
               }
@@ -516,6 +583,7 @@ export default function App() {
           setIsSettingsOpen(true);
         }}
         onOpenSearch={() => setIsSearchOpen(true)}
+        onOpenGptsStore={() => setIsGptsStoreOpen(true)}
         onShareConv={(id) => {
           setCurrentConvId(id);
           setIsShareOpen(true);
@@ -592,6 +660,8 @@ export default function App() {
         onUpdateSettings={(newSt) => setSettings((prev) => ({ ...prev, ...newSt }))}
         conversations={conversations}
         onClearAllChats={handleClearAllChats}
+        onUnarchiveConv={handleUnarchiveConv}
+        onDeleteConv={handleDeleteConv}
         initialTab={settingsTab}
       />
 
@@ -607,6 +677,13 @@ export default function App() {
         onClose={() => setIsSearchOpen(false)}
         conversations={conversations}
         onSelectConv={handleSelectConv}
+        isRtl={isRtl}
+      />
+
+      <GptsStoreModal
+        isOpen={isGptsStoreOpen}
+        onClose={() => setIsGptsStoreOpen(false)}
+        onSelectGpt={handleSelectGpt}
         isRtl={isRtl}
       />
     </div>

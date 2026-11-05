@@ -16,7 +16,8 @@ export interface SourceCitation {
   domain: string;
   snippet: string;
   url: string;
-  reliability: string;
+  isExample: boolean;
+  reliabilityLabel: string;
 }
 
 export interface GroundedDoc {
@@ -49,10 +50,11 @@ export interface AdminUser {
   id: string;
   name: string;
   email: string;
-  role: 'مستقل' | 'متجر إلكتروني' | 'مكتب خدمات';
+  role: 'مستقل (تجريبي)' | 'متجر تجريبي' | 'مكتب تجريبي';
   status: 'active' | 'suspended' | 'trial';
   tasksCount: number;
-  creditsBalance: number;
+  creditsAvailable: number;
+  creditsFrozen: number;
   joinedDate: string;
 }
 
@@ -60,10 +62,11 @@ export interface CreditTransaction {
   id: string;
   userId: string;
   userName: string;
-  type: 'استهلاك مهمة' | 'شحن رصيد' | 'تسوية إدارية' | 'ترقية باقة';
+  type: 'إضافة رصيد (محاكاة)' | 'خصم رصيد (محاكاة)' | 'تجميد رصيد (محاكاة)' | 'تحرير رصيد (محاكاة)';
   amount: number;
+  reason: string;
   timestamp: string;
-  taskRef?: string;
+  executedBy: string;
 }
 
 export interface AdminAuditLog {
@@ -73,4 +76,18 @@ export interface AdminAuditLog {
   target: string;
   timestamp: string;
   ip: string;
+  isMockLog: boolean;
+}
+
+export interface AIProviderConfig {
+  id: string;
+  name: string;
+  status: 'active' | 'inactive';
+  mockKeyDisplay: string;
+  models: {
+    id: string;
+    name: string;
+    isDefault?: boolean;
+    assignedTask?: 'بحث الويب' | 'تحليل الملفات' | 'إنشاء المخرجات' | 'عام';
+  }[];
 }

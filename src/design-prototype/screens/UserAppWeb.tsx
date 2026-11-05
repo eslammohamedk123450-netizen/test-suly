@@ -27,6 +27,7 @@ import {
   ChevronLeft,
   X,
   FileDown,
+  AlertTriangle,
 } from 'lucide-react';
 import { VisualTheme, TaskType, SourceCitation, GroundedDoc, DeliverableArtifact } from '../types';
 import { THEME_CONFIGS } from '../themeTokens';
@@ -42,17 +43,29 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
   // Active Task mode
   const [activeTask, setActiveTask] = useState<TaskType>('web-search');
   const [taskState, setTaskState] = useState<'idle' | 'running' | 'completed' | 'paused'>('completed');
-  const [executionStep, setExecutionStep] = useState(2);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showArtifactDrawer, setShowArtifactDrawer] = useState(false);
   const [selectedArtifact, setSelectedArtifact] = useState<DeliverableArtifact>(MOCK_DELIVERABLES[0]);
   const [showSensitivePrompt, setShowSensitivePrompt] = useState(false);
   const [promptConfirmed, setPromptConfirmed] = useState(false);
-  const [searchSources, setSearchSources] = useState<SourceCitation[]>(MOCK_SEARCH_SOURCES);
   const [activeDoc, setActiveDoc] = useState<GroundedDoc>(MOCK_GROUNDED_DOCS[0]);
+  const [simulationNotice, setSimulationNotice] = useState<string | null>(null);
+
+  const triggerSimulationNotice = (msg: string) => {
+    setSimulationNotice(msg);
+    setTimeout(() => setSimulationNotice(null), 3000);
+  };
 
   return (
-    <div className={`min-h-[calc(100vh-52px)] ${cfg.bgClass} text-neutral-100 flex flex-col md:flex-row transition-colors duration-200`}>
+    <div className={`min-h-[calc(100vh-84px)] ${cfg.bgClass} text-neutral-100 flex flex-col md:flex-row transition-colors duration-200 relative`}>
+      {/* Simulation Feedback Toast */}
+      {simulationNotice && (
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-neutral-900 border border-amber-500/50 text-amber-200 px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-2xl">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>{simulationNotice}</span>
+        </div>
+      )}
+
       {/* Desktop Sidebar (Right Side in RTL) */}
       <aside className={`w-full md:w-64 lg:w-72 border-l ${cfg.borderClass} ${cfg.surfaceClass} flex flex-col shrink-0`}>
         {/* Workspace info & New Task */}
@@ -63,7 +76,12 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
                 S
               </span>
               <div>
-                <h1 className="text-sm font-bold text-white">SULY AI</h1>
+                <div className="flex items-center gap-1.5">
+                  <h1 className="text-sm font-bold text-white">SULY AI</h1>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    بيانات تجريبية
+                  </span>
+                </div>
                 <p className="text-[11px] text-neutral-400">مساعد الأعمال المصغرة</p>
               </div>
             </div>
@@ -71,6 +89,7 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
               onClick={() => {
                 setTaskState('idle');
                 setActiveTask('web-search');
+                triggerSimulationNotice('محاكاة: تم بدء جلسة مهمة جديدة فارغة.');
               }}
               className="p-1.5 rounded-lg bg-neutral-800/80 hover:bg-neutral-700 text-neutral-300 hover:text-white transition-colors"
               title="مهمة جديدة"
@@ -82,18 +101,22 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
           <button
             onClick={() => {
               setTaskState('running');
-              setTimeout(() => setTaskState('completed'), 1200);
+              triggerSimulationNotice('محاكاة واجهة: جاري تشغيل خطوات الوكيل الافتراضية.');
+              setTimeout(() => setTaskState('completed'), 1000);
             }}
             className={`w-full py-2 px-3 rounded-xl ${cfg.buttonPrimaryClass} font-medium text-xs flex items-center justify-center gap-2 transition-all`}
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>بدء مهمة جديدة</span>
+            <span>بدء مهمة جديدة (محاكاة)</span>
           </button>
         </div>
 
         {/* The 3 Core Agent Tasks Selector */}
         <div className="p-3 border-b border-neutral-800/80">
-          <p className="text-[11px] font-semibold text-neutral-400 mb-2 px-1">المهام الثلاث المعتمدة للوكيل:</p>
+          <div className="flex items-center justify-between mb-2 px-1">
+            <p className="text-[11px] font-semibold text-neutral-400">المهام الثلاث للمرحلة الأولى:</p>
+            <span className="text-[9px] text-amber-400/90 font-mono">مقترح للمراجعة</span>
+          </div>
           <div className="space-y-1.5">
             <button
               onClick={() => {
@@ -109,7 +132,7 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
               <Search className={`w-4 h-4 mt-0.5 shrink-0 ${activeTask === 'web-search' ? cfg.accentTextClass : 'text-neutral-500'}`} />
               <div>
                 <p className="text-xs font-semibold text-neutral-200">1. بحث الويب وتوثيق المصادر</p>
-                <p className="text-[10px] text-neutral-400">جمع نتائج حية مع روابط التحقق المباشرة</p>
+                <p className="text-[10px] text-neutral-400">عرض روابط تجريبية للاختبار على نطاق .example</p>
               </div>
             </button>
 
@@ -127,7 +150,7 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
               <FileText className={`w-4 h-4 mt-0.5 shrink-0 ${activeTask === 'file-analysis' ? cfg.accentTextClass : 'text-neutral-500'}`} />
               <div>
                 <p className="text-xs font-semibold text-neutral-200">2. تحليل الملفات والإحالة للمواضع</p>
-                <p className="text-[10px] text-neutral-400">قراءة عقود PDF وجداول Excel بدقة</p>
+                <p className="text-[10px] text-neutral-400">اقتباسات افتراضية مع الإشارة لموضع البند</p>
               </div>
             </button>
 
@@ -146,7 +169,7 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
               <FileSpreadsheet className={`w-4 h-4 mt-0.5 shrink-0 ${activeTask === 'deliverable-gen' ? cfg.accentTextClass : 'text-neutral-500'}`} />
               <div>
                 <p className="text-xs font-semibold text-neutral-200">3. إنشاء مخرج عملي قابل للتنزيل</p>
-                <p className="text-[10px] text-neutral-400">تقارير، مسودات عروض، وجداول جاهزة</p>
+                <p className="text-[10px] text-neutral-400">معاينة مسودة تقرير وجدول (محاكاة تنزيل)</p>
               </div>
             </button>
           </div>
@@ -155,8 +178,8 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
         {/* Project Files in Knowledge Base */}
         <div className="flex-1 p-3 overflow-y-auto">
           <div className="flex items-center justify-between mb-2 px-1">
-            <span className="text-[11px] font-semibold text-neutral-400">ملفات المشروع النشطة</span>
-            <span className="text-[10px] text-neutral-400">{MOCK_GROUNDED_DOCS.length} ملفات</span>
+            <span className="text-[11px] font-semibold text-neutral-400">ملفات المشروع (عناصر اختبار)</span>
+            <span className="text-[10px] text-amber-300 font-mono">بيانات تجريبية</span>
           </div>
           <div className="space-y-1.5">
             {MOCK_GROUNDED_DOCS.map((doc) => (
@@ -198,11 +221,11 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
           >
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-xs font-semibold text-neutral-300">
-                ع.م
+                تجريبي
               </div>
               <div>
-                <p className="text-xs font-semibold text-white">متجر النخبة</p>
-                <p className="text-[10px] text-neutral-400">الرصيد: 75 / 100 مهمة</p>
+                <p className="text-xs font-semibold text-white">مستخدم تجريبي 01</p>
+                <p className="text-[10px] text-amber-300">لم تُعتمد قواعد الرصيد بعد</p>
               </div>
             </div>
             <Settings className="w-4 h-4 text-neutral-400" />
@@ -211,38 +234,49 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
       </aside>
 
       {/* Main Agent Workspace */}
-      <main className="flex-1 flex flex-col min-w-0 h-[calc(100vh-52px)] overflow-hidden">
+      <main className="flex-1 flex flex-col min-w-0 h-[calc(100vh-84px)] overflow-hidden">
         {/* Workspace Top Action Bar */}
         <div className={`h-14 border-b ${cfg.borderClass} px-4 lg:px-6 flex items-center justify-between bg-neutral-950/40 shrink-0`}>
           <div className="flex items-center gap-3">
             <span className={`w-2 h-2 rounded-full ${taskState === 'running' ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
             <div>
-              <h2 className="text-sm font-bold text-white">
-                {activeTask === 'web-search' && 'بحث الويب: متوسط أسعار الشحن للمتاجر في السعودية 2026'}
-                {activeTask === 'file-analysis' && `تحليل المستند المرفوع: ${activeDoc.name}`}
-                {activeTask === 'deliverable-gen' && 'إعداد مخرج عملي: مسودة عرض سعر احترافية'}
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-white">
+                  {activeTask === 'web-search' && 'مهمة 1 (بحث الويب): استعلام تجريبي حول مؤشرات الشحن'}
+                  {activeTask === 'file-analysis' && `مهمة 2 (تحليل ملف): ${activeDoc.name}`}
+                  {activeTask === 'deliverable-gen' && 'مهمة 3 (المخرج العملي): مسودة عرض خدمات تجريبية'}
+                </h2>
+                <span className="text-[10px] px-2 py-0.5 rounded bg-neutral-800 text-amber-300 border border-neutral-700">
+                  محاكاة واجهة
+                </span>
+              </div>
               <p className="text-[11px] text-neutral-400">
-                {taskState === 'running' && 'الوكيل ينفذ المهمة الآن...'}
-                {taskState === 'completed' && 'اكتملت المهمة بنجاح وجاهزة للاستخدام'}
-                {taskState === 'paused' && 'المهمة موقوفة مؤقتاً بطلب المستخدم'}
+                {taskState === 'running' && 'محاكاة: خطوة الوكيل قيد العرض...'}
+                {taskState === 'completed' && 'النتيجة معروضة للمعاينة والمراجعة'}
+                {taskState === 'paused' && 'المهمة موقوفة مؤقتاً في المحاكاة'}
               </p>
             </div>
           </div>
 
-          {/* Controls: Pause / Retry / Sensitive Action Simulator */}
+          {/* Controls: Pause / Retry / Artifact Drawer Trigger */}
           <div className="flex items-center gap-2">
             {taskState === 'running' ? (
               <button
-                onClick={() => setTaskState('paused')}
+                onClick={() => {
+                  setTaskState('paused');
+                  triggerSimulationNotice('محاكاة: تم إيقاف المهمة مؤقتاً.');
+                }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-amber-300 text-xs font-medium border border-amber-500/20"
               >
                 <Pause className="w-3.5 h-3.5" />
-                <span>إيقاف المهمة</span>
+                <span>إيقاف المهمة (محاكاة)</span>
               </button>
             ) : taskState === 'paused' ? (
               <button
-                onClick={() => setTaskState('running')}
+                onClick={() => {
+                  setTaskState('running');
+                  triggerSimulationNotice('محاكاة: تم استئناف المهمة.');
+                }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900 text-emerald-300 text-xs font-medium border border-emerald-500/30"
               >
                 <Play className="w-3.5 h-3.5" />
@@ -252,13 +286,14 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
               <button
                 onClick={() => {
                   setTaskState('running');
+                  triggerSimulationNotice('محاكاة: إعادة تشغيل المهمة افتراضياً.');
                   setTimeout(() => setTaskState('completed'), 1000);
                 }}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-neutral-900 hover:bg-neutral-800 text-neutral-300 hover:text-white text-xs border border-neutral-800"
                 title="إعادة المحاولة"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">إعادة المحاولة</span>
+                <span className="hidden sm:inline">إعادة المحاولة (محاكاة)</span>
               </button>
             )}
 
@@ -282,14 +317,17 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
           {/* User Request Bubble */}
           <div className="flex items-start gap-3 justify-end">
             <div className={`max-w-xl p-3.5 rounded-2xl rounded-tr-none ${cfg.surfaceElevatedClass} border ${cfg.borderClass} text-right`}>
-              <p className="text-xs font-semibold text-neutral-400 mb-1">أنت (صاحب المتجر):</p>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-amber-300/80 font-mono">طلب تجريبي للتصميم</span>
+                <p className="text-xs font-semibold text-neutral-400">المستخدم (صاحب عمل افتراضي):</p>
+              </div>
               <p className="text-sm text-neutral-100 leading-relaxed">
                 {activeTask === 'web-search' &&
-                  'ابحث لي عن أحدث أسعار الشحن الداخلي للتجارة الإلكترونية في السعودية لعام 2026، ولخص لي الفروقات بين الشركات مع روابط المصادر.'}
+                  'ابحث لي عن مؤشرات أسعار الشحن للتجارة الإلكترونية ولخص الفروقات مع مراجع تجريبية للاختبار.'}
                 {activeTask === 'file-analysis' &&
-                  `استخرج لي من عقد الشحن المرفق (${activeDoc.name}) شروط الدفع، وغرامات التأخير، والحد الأدنى للشحنات مع ذكر رقم الصفحة والبند.`}
+                  `استخرج لي من المستند التجريبي (${activeDoc.name}) شروط السداد والفسخ مع الإشارة لموضع البند في الصفحات.`}
                 {activeTask === 'deliverable-gen' &&
-                  'اكتب لي مسودة عرض خدمات لوجستية وتوزيع رسمية لعميلي (متجر الأناقة)، مع جدول بالأسعار المقترحة وشروط الدفع جاهزة للتنزيل كـ PDF.'}
+                  'أنشئ لي مسودة عرض خدمات تجارية جاهزة للمعاينة والتحميل لمراجعة التصميم والتنسيق.'}
               </p>
             </div>
             <div className="w-8 h-8 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-xs font-bold text-neutral-300 shrink-0">
@@ -304,10 +342,10 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
                 <span className={`w-6 h-6 rounded-md ${cfg.accentBgClass} flex items-center justify-center text-white text-xs`}>
                   <Compass className="w-3.5 h-3.5" />
                 </span>
-                <span className="text-xs font-bold text-white">خطوات تنفيذ الوكيل الذكي</span>
+                <span className="text-xs font-bold text-white">خطوات تنفيذ الوكيل (محاكاة واجهة)</span>
               </div>
               <span className={`text-[11px] px-2 py-0.5 rounded-md ${cfg.chipClass} font-mono`}>
-                {taskState === 'running' ? 'قيد التنفيذ 2 / 3' : 'مكتمل 3 / 3'}
+                {taskState === 'running' ? 'قيد المحاكاة 2 / 3' : 'مكتمل في العرض 3 / 3'}
               </span>
             </div>
 
@@ -316,9 +354,9 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
               <div className="flex items-center gap-2 text-neutral-300">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                 <span>
-                  {activeTask === 'web-search' && 'تحليل استعلام البحث واستخراج المصطلحات الدقيقة'}
-                  {activeTask === 'file-analysis' && `فهرسة وقراءة بنية ملف: ${activeDoc.name}`}
-                  {activeTask === 'deliverable-gen' && 'صياغة هيكل العرض التجاري وجداول الأسعار'}
+                  {activeTask === 'web-search' && 'تحليل استعلام البحث النموذجي'}
+                  {activeTask === 'file-analysis' && `فهرسة بنية الملف التجريبي: ${activeDoc.name}`}
+                  {activeTask === 'deliverable-gen' && 'صياغة هيكل المخرج التجريبي'}
                 </span>
               </div>
 
@@ -329,9 +367,9 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                 )}
                 <span className="font-medium text-white">
-                  {activeTask === 'web-search' && 'فحص وقراءة 3 مصادر ويب رسمية واستخراج الأسعار المعتمدة'}
-                  {activeTask === 'file-analysis' && 'استخراج البنود القانونية وتحديد رقم الصفحة والفقرة'}
-                  {activeTask === 'deliverable-gen' && 'توليد ملف العرض وحساب الجداول وتنسيق الطباعة'}
+                  {activeTask === 'web-search' && 'عرض 3 مراجع اختبارية على نطاق .example (تمثيلية)'}
+                  {activeTask === 'file-analysis' && 'استخراج البنود وتحديد رقم الصفحة افتراضياً'}
+                  {activeTask === 'deliverable-gen' && 'تجهيز مسودة المستند للمعاينة والتنزيل المحاكى'}
                 </span>
               </div>
             </div>
@@ -346,22 +384,27 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
               {/* Task 1: Web Search Result & Grounded Sources */}
               {activeTask === 'web-search' && (
                 <div>
-                  <h3 className="text-sm font-bold text-white mb-2">
-                    ملخص أسعار الشحن الداخلي للمتاجر الإلكترونية في السعودية (2026):
-                  </h3>
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-bold text-white">
+                      ملخص افتراضي لمؤشرات الشحن (بيانات تجريبية للاختبار):
+                    </h3>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                      بيانات تجريبية
+                    </span>
+                  </div>
                   <div className="text-xs text-neutral-300 space-y-2.5 leading-relaxed">
                     <p>
-                      بناءً على نتائج البحث ومسوحات القطاع اللوجستي للعام الحالي، تنقسم أسعار الشحن إلى ثلاث فئات رئيسية:
+                      نص افتراضي لتوضيح أسلوب التلخيص وتقسيم النتائج إلى فئات واضحة:
                     </p>
                     <ul className="list-disc list-inside space-y-1.5 mr-2 text-neutral-200">
                       <li>
-                        <strong>الشركات الناشئة والمرنة:</strong> يتراوح متوسط السعر بين <strong>18 إلى 24 ريالاً</strong> للشحنة (وزن حتى 5 كجم)، مع اشتراط 50 شحنة أسبوعياً كحد أدنى [1].
+                        <strong>فئة أ (بيانات نموذجية):</strong> نطاق تقديري توضيحي للاختبار [1].
                       </li>
                       <li>
-                        <strong>الشركات اللوجستية الكبرى:</strong> تتراوح الأسعار بين <strong>26 إلى 34 ريالاً</strong>، وتتميز بشبكة فروع أوسع وخاصية التوصيل المسائي في نفس اليوم بالرياض وجدة [2].
+                        <strong>فئة ب (بيانات نموذجية):</strong> نطاق تقديري توضيحي للاختبار [2].
                       </li>
                       <li>
-                        <strong>رسوم الدفع عند الاستلام (COD):</strong> تستقر عند 5 إلى 8 ريالات للشحنة، مع تفضيل المتاجر للربط مع بوابات الدفع الإلكترونية السريعة لتقليل المرتجعات [3].
+                        <strong>ملاحظات إضافية:</strong> توضيح طريقة تضمين المراجع التفاعلية [3].
                       </li>
                     </ul>
                   </div>
@@ -369,29 +412,27 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
                   {/* Source Grounding Cards List */}
                   <div className="mt-4 pt-3 border-t border-neutral-800">
                     <div className="flex items-center justify-between mb-2.5">
-                      <span className="text-xs font-semibold text-neutral-400">المصادر المعتمدة للتحقق:</span>
-                      <span className="text-[11px] text-neutral-400">3 روابط موثقة</span>
+                      <span className="text-xs font-semibold text-neutral-400">المصادر النموذجية (مراجع اختبارية):</span>
+                      <span className="text-[11px] text-amber-300">نطاق .example تجريبي</span>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                      {searchSources.map((source) => (
-                        <a
+                      {MOCK_SEARCH_SOURCES.map((source) => (
+                        <div
                           key={source.id}
-                          href={source.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={`p-2.5 rounded-xl border ${cfg.borderClass} ${cfg.surfaceElevatedClass} hover:border-neutral-600 transition-all block text-right group`}
+                          onClick={() => triggerSimulationNotice('رابط تجريبي للاختبار — لا يثبت أي معلومة وغير قابل للفتح كمصدر فعلي.')}
+                          className={`p-2.5 rounded-xl border ${cfg.borderClass} ${cfg.surfaceElevatedClass} hover:border-neutral-600 transition-all block text-right cursor-pointer group`}
                         >
                           <div className="flex items-center justify-between gap-1 text-[11px] text-neutral-400 mb-1">
                             <span className="font-mono">[{source.id}] {source.domain}</span>
-                            <ExternalLink className="w-3 h-3 group-hover:text-white transition-colors" />
+                            <span className="text-[9px] text-amber-400">تجريبي</span>
                           </div>
                           <p className="text-xs font-medium text-neutral-200 line-clamp-2 leading-snug group-hover:text-blue-300">
                             {source.title}
                           </p>
                           <span className="inline-block mt-1.5 text-[10px] text-neutral-400">
-                            {source.reliability}
+                            {source.reliabilityLabel}
                           </span>
-                        </a>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -403,9 +444,11 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-bold text-white">
-                      استخلاص البنود والشروط من المستند: {activeDoc.name}
+                      استخلاص البنود من المستند التجريبي: {activeDoc.name}
                     </h3>
-                    <span className="text-[11px] text-neutral-400 font-mono">18 صفحة مفهرسة</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-mono">
+                      بيانات تجريبية
+                    </span>
                   </div>
 
                   <div className="space-y-3 text-xs leading-relaxed">
@@ -418,7 +461,7 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
                           <span className={`text-[11px] font-semibold ${cfg.accentTextClass}`}>
                             📌 {cite.location}
                           </span>
-                          <span className="text-[10px] text-neutral-400">مطابقة دقيقة</span>
+                          <span className="text-[10px] text-neutral-400">إحالة موضع تجريبية</span>
                         </div>
                         <p className="text-neutral-200 bg-neutral-950/40 p-2 rounded-lg border border-neutral-800/60 font-mono text-[11px]">
                           "{cite.text}"
@@ -429,7 +472,7 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
 
                   <div className="mt-4 p-3 rounded-xl bg-neutral-900/60 border border-neutral-800 flex items-center justify-between">
                     <span className="text-xs text-neutral-300">
-                      هل ترغب في صياغة خطاب تعديل لبند الحد الأدنى للشحنات لتقديمه للشركة؟
+                      هل ترغب في صياغة خطاب تعديل لهذا البند؟ (محاكاة إجراء الوكيل)
                     </span>
                     <button
                       onClick={() => {
@@ -438,7 +481,7 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
                       }}
                       className={`px-3 py-1.5 rounded-lg ${cfg.buttonPrimaryClass} text-xs font-medium`}
                     >
-                      إنشاء خطاب التعديل
+                      إنشاء خطاب التعديل (محاكاة)
                     </button>
                   </div>
                 </div>
@@ -449,14 +492,14 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-bold text-white">
-                      تم إنشاء مخرج العمل: {selectedArtifact.title}
+                      تم تجهيز المخرج للمعاينة: {selectedArtifact.title}
                     </h3>
-                    <span className={`text-[10px] px-2 py-0.5 rounded ${cfg.chipClass}`}>
-                      جاهز للتنزيل
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-mono">
+                      مخرج تجريبي للتصميم
                     </span>
                   </div>
                   <p className="text-xs text-neutral-300 leading-relaxed">
-                    تم إعداد مسودة العرض التجاري المخصص بأسلوب رسمي ومهني، متضمناً نطاق العمل، وجدول الأسعار، وآلية الفوترة، مع الالتزام بالهيكل المعتمد للطباعة والمراجعة.
+                    مسودة تقرير جاهزة للمعاينة المباشرة ومحاكاة التنزيل دون تنفيذ أي أوامر خارجية.
                   </p>
 
                   {/* Artifact Preview Card */}
@@ -468,7 +511,7 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
                       <div>
                         <p className="text-xs font-bold text-white">{selectedArtifact.title}</p>
                         <p className="text-[11px] text-neutral-400">
-                          {selectedArtifact.wordCount} كلمة · {selectedArtifact.readTime} · بصيغة PDF و Word
+                          مستند افتراضي للمعاينة · صيغ PDF و Word و Excel
                         </p>
                       </div>
                     </div>
@@ -481,11 +524,11 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
                         معاينة المستند
                       </button>
                       <button
-                        onClick={() => alert('تم بدء تنزيل ملف PDF الخاص بالعرض التجاري.')}
+                        onClick={() => triggerSimulationNotice('محاكاة واجهة: تم النقر على زر التنزيل — لم يتم تنزيل ملف فعلي في هذا النموذج التجريبي.')}
                         className={`px-3 py-1.5 rounded-lg ${cfg.buttonPrimaryClass} text-xs font-medium flex items-center gap-1.5`}
                       >
                         <Download className="w-3.5 h-3.5" />
-                        <span>تنزيل PDF</span>
+                        <span>تنزيل (محاكاة)</span>
                       </button>
                     </div>
                   </div>
@@ -497,7 +540,7 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
                 <div className="mt-4 p-4 rounded-xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs space-y-2">
                   <div className="flex items-center gap-2 font-bold">
                     <AlertCircle className="w-4 h-4 text-amber-400" />
-                    <span>موافقة مطلوبة قبل اتخاذ إجراء مؤثر:</span>
+                    <span>موافقة مطلوبة قبل اتخاذ إجراء مؤثر (محاكاة واجهة):</span>
                   </div>
                   <p className="leading-relaxed">
                     أنت على وشك اعتماد هذا المخرج وحفظه كمستند رسمي دائم في قاعدة معرفة المشروع واستبدال المسودة القديمة. هل تؤكد المتابعة؟
@@ -507,7 +550,7 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
                       onClick={() => setPromptConfirmed(true)}
                       className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-semibold text-xs"
                     >
-                      نعم، اعتمد الإجراء
+                      نعم، اعتمد الإجراء (محاكاة)
                     </button>
                     <button
                       onClick={() => setShowSensitivePrompt(false)}
@@ -522,7 +565,7 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
               {promptConfirmed && (
                 <div className="p-2.5 rounded-lg bg-emerald-950/40 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>تم اعتماد الإجراء وحفظ المستند بعد موافقتك الصريحة.</span>
+                  <span>محاكاة: تم تأكيد الإجراء محلياً بعد موافقة المستخدم.</span>
                 </div>
               )}
 
@@ -530,7 +573,7 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
               <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-neutral-800/60 text-xs text-neutral-400">
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => navigator.clipboard?.writeText('تم نسخ ملخص الوكيل.')}
+                    onClick={() => triggerSimulationNotice('محاكاة واجهة: تم نسخ الملخص إلى الحافظة.')}
                     className="flex items-center gap-1 hover:text-white transition-colors"
                   >
                     <Copy className="w-3.5 h-3.5" />
@@ -544,7 +587,9 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
                     تجربة طلب موافقة حساسة
                   </button>
                 </div>
-                <span className="font-mono text-[11px]">زمن الاستجابة: 1.4 ثانية · نموذج Gemini 3.8 Flash</span>
+                <span className="font-mono text-[11px] text-neutral-500">
+                  وقت الاستجابة تمثيلي · نموذج Gemini 3.8 Flash
+                </span>
               </div>
             </div>
           </div>
@@ -556,19 +601,14 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
             <div className={`flex items-center gap-2 p-2 rounded-2xl ${cfg.surfaceClass} border ${cfg.borderClass} focus-within:border-blue-500/60 transition-all`}>
               <label
                 className="p-2 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800 cursor-pointer transition-colors"
-                title="إرفاق ملف PDF أو Excel أو Word"
+                title="إرفاق ملف تجريبي (محاكاة)"
+                onClick={(e) => {
+                  e.preventDefault();
+                  triggerSimulationNotice('محاكاة واجهة: تم اختيار ملف تجريبي — لا يتم رفع أي ملفات فعلية.');
+                  setActiveTask('file-analysis');
+                }}
               >
                 <Paperclip className="w-4 h-4" />
-                <input
-                  type="file"
-                  className="hidden"
-                  onChange={(e) => {
-                    if (e.target.files?.[0]) {
-                      alert(`تم اختيار الملف: ${e.target.files[0].name} (محاكاة رفع ملف وتحليله)`);
-                      setActiveTask('file-analysis');
-                    }
-                  }}
-                />
               </label>
 
               <input
@@ -578,6 +618,7 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     setTaskState('running');
+                    triggerSimulationNotice('محاكاة واجهة: تشغيل معالجة الطلب.');
                     setTimeout(() => setTaskState('completed'), 1000);
                   }
                 }}
@@ -586,10 +627,11 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
               <button
                 onClick={() => {
                   setTaskState('running');
+                  triggerSimulationNotice('محاكاة واجهة: تشغيل معالجة الطلب.');
                   setTimeout(() => setTaskState('completed'), 1000);
                 }}
                 className={`p-2.5 rounded-xl ${cfg.buttonPrimaryClass} transition-all`}
-                title="إرسال الطلب"
+                title="إرسال الطلب (محاكاة)"
               >
                 <Send className="w-4 h-4 transform -scale-x-100" />
               </button>
@@ -597,7 +639,7 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
 
             {/* Quick Action Chips */}
             <div className="flex items-center gap-2 mt-2 px-1 text-[11px] text-neutral-400 overflow-x-auto py-0.5">
-              <span className="shrink-0">اقتراحات سريعة:</span>
+              <span className="shrink-0 text-amber-400/90 font-mono">أمثلة تجريبية:</span>
               <button
                 onClick={() => {
                   setActiveTask('web-search');
@@ -605,7 +647,7 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
                 }}
                 className="px-2.5 py-1 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white transition-colors shrink-0"
               >
-                🌐 قارن أسعار الشحن 2026
+                🌐 تجربة بحث الويب
               </button>
               <button
                 onClick={() => {
@@ -614,7 +656,7 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
                 }}
                 className="px-2.5 py-1 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white transition-colors shrink-0"
               >
-                📄 ما شروط فسخ العقد المرفق؟
+                📄 تجربة تحليل ملف
               </button>
               <button
                 onClick={() => {
@@ -624,7 +666,7 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
                 }}
                 className="px-2.5 py-1 rounded-lg bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-white transition-colors shrink-0"
               >
-                📊 مسودة عرض سعر قابلة للتنزيل
+                📊 تجربة معاينة مخرج
               </button>
             </div>
           </div>
@@ -638,7 +680,7 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
           <div className="p-4 border-b border-neutral-800 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <FileDown className={`w-4 h-4 ${cfg.accentTextClass}`} />
-              <span className="text-sm font-bold text-white">معاينة المخرج وتنزيله</span>
+              <span className="text-sm font-bold text-white">معاينة المخرج وتنزيله (محاكاة)</span>
             </div>
             <button
               onClick={() => setShowArtifactDrawer(false)}
@@ -661,7 +703,7 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
                 }`}
               >
                 <p className="truncate">{art.title}</p>
-                <p className="text-[10px] text-neutral-400">{art.format.toUpperCase()} · {art.readTime}</p>
+                <p className="text-[10px] text-amber-300/80">مخرج تجريبي</p>
               </button>
             ))}
           </div>
@@ -670,9 +712,11 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
           <div className="flex-1 overflow-y-auto p-4 bg-neutral-950/60">
             <div className="bg-white text-neutral-900 p-5 rounded-xl shadow-lg font-sans text-xs space-y-3 leading-relaxed border border-neutral-300">
               <div className="border-b pb-3 border-neutral-200">
-                <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider">مخرج رسمي من SULY AI</span>
+                <span className="text-[10px] font-bold text-blue-800 uppercase tracking-wider">
+                  نموذج تصميم تجريبي — محتوى تمثيلي
+                </span>
                 <h1 className="text-base font-bold text-neutral-900 mt-1">{selectedArtifact.title}</h1>
-                <p className="text-[11px] text-neutral-500 mt-0.5">التاريخ: نوفمبر 2026 · المرجع: SULY-PROP-2026-089</p>
+                <p className="text-[11px] text-neutral-500 mt-0.5">مرجع افتراضي: SULY-PROP-TEST-SAMPLE</p>
               </div>
 
               <div className="space-y-2 whitespace-pre-wrap font-sans text-neutral-800 text-xs">
@@ -680,7 +724,7 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
               </div>
 
               <div className="border-t pt-3 border-neutral-200 text-[10px] text-neutral-500 flex justify-between">
-                <span>تم إعداد المستند عبر SULY AI للأعمال</span>
+                <span>نموذج محاكاة المخرجات</span>
                 <span>الصفحة 1 من 1</span>
               </div>
             </div>
@@ -690,25 +734,22 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
           <div className="p-4 border-t border-neutral-800 bg-neutral-950/90 space-y-2">
             <div className="grid grid-cols-2 gap-2">
               <button
-                onClick={() => alert('تم تنزيل المخرج بصيغة PDF قابلة للطباعة.')}
+                onClick={() => triggerSimulationNotice('محاكاة واجهة: تنزيل ملف PDF (محاكاة فقط — لم يتم تنزيل ملف فعلي).')}
                 className={`py-2 px-3 rounded-xl ${cfg.buttonPrimaryClass} font-medium text-xs flex items-center justify-center gap-1.5`}
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>تنزيل PDF (A4)</span>
+                <span>تنزيل PDF (محاكاة)</span>
               </button>
               <button
-                onClick={() => alert('تم تنزيل المخرج بصيغة Word (DOCX) للتعديل.')}
+                onClick={() => triggerSimulationNotice('محاكاة واجهة: تنزيل ملف Word (محاكاة فقط — لم يتم تنزيل ملف فعلي).')}
                 className="py-2 px-3 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-white font-medium text-xs flex items-center justify-center gap-1.5 border border-neutral-700"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>تنزيل Word (DOCX)</span>
+                <span>تنزيل Word (محاكاة)</span>
               </button>
             </div>
             <button
-              onClick={() => {
-                navigator.clipboard?.writeText(selectedArtifact.content);
-                alert('تم نسخ نص المخرج كاملاً إلى الحافظة.');
-              }}
+              onClick={() => triggerSimulationNotice('محاكاة واجهة: تم نسخ النص إلى الحافظة.')}
               className="w-full py-1.5 text-xs text-neutral-400 hover:text-neutral-200 text-center"
             >
               نسخ النص الخام للمستند
@@ -724,7 +765,7 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
             <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
               <div className="flex items-center gap-2">
                 <CreditCard className={`w-4 h-4 ${cfg.accentTextClass}`} />
-                <h3 className="text-sm font-bold text-white">تفاصيل الحساب واستخدام الرصيد</h3>
+                <h3 className="text-sm font-bold text-white">تفاصيل الحساب والرصيد (واجهة تجريبية)</h3>
               </div>
               <button
                 onClick={() => setShowAccountModal(false)}
@@ -734,54 +775,57 @@ export const UserAppWeb: React.FC<UserAppWebProps> = ({ theme }) => {
               </button>
             </div>
 
-            {/* Profile Info */}
+            {/* Profile Info (Mock Only) */}
             <div className="flex items-center gap-3 p-3 rounded-xl bg-neutral-950/60 border border-neutral-800">
-              <div className="w-10 h-10 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center font-bold text-sm text-neutral-200">
-                ع.م
+              <div className="w-10 h-10 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center font-bold text-xs text-neutral-200">
+                تجريبي
               </div>
               <div>
-                <p className="text-xs font-bold text-white">عبدالله بن سعد المطيري</p>
-                <p className="text-[11px] text-neutral-400">abdullah.saad@business.sa</p>
-                <span className="inline-block mt-0.5 text-[10px] text-emerald-400">عضو نشط · متجر إلكتروني</span>
+                <p className="text-xs font-bold text-white">مستخدم تجريبي 01</p>
+                <p className="text-[11px] text-neutral-400 font-mono">user01@example.com</p>
+                <span className="inline-block mt-0.5 text-[10px] text-amber-300">حساب تجريبي لاختبار الواجهة</span>
               </div>
             </div>
 
-            {/* Balance and Plan Cards (No invented deduction rules) */}
+            {/* Balance and Plan Cards (Compliant: No invented deduction rules) */}
             <div className="grid grid-cols-2 gap-3">
               <div className="p-3 rounded-xl bg-neutral-900/60 border border-neutral-800">
                 <p className="text-[11px] text-neutral-400">الخطة الحالية</p>
-                <p className="text-sm font-bold text-white mt-1">باقة رواد الأعمال</p>
-                <p className="text-[10px] text-neutral-400 mt-0.5">تتجدد في 1 ديسمبر 2026</p>
+                <p className="text-xs font-bold text-amber-300 mt-1">الخطة غير محددة</p>
+                <p className="text-[10px] text-neutral-500 mt-0.5">موعد التجديد غير محدد</p>
               </div>
               <div className="p-3 rounded-xl bg-neutral-900/60 border border-neutral-800">
-                <p className="text-[11px] text-neutral-400">رصيد المهام المتبقي</p>
-                <p className="text-base font-bold text-emerald-400 font-mono tabular-nums mt-0.5">75 / 100</p>
-                <p className="text-[10px] text-neutral-400 mt-0.5">تم استهلاك 25 مهمة</p>
+                <p className="text-[11px] text-neutral-400">رصيد العمليات</p>
+                <p className="text-xs font-bold text-amber-300 mt-1">لم تُعتمد قواعد الرصيد بعد</p>
+                <p className="text-[10px] text-neutral-500 mt-0.5">حقل تجريبي للتصميم فقط</p>
               </div>
             </div>
 
             <div className="p-3 rounded-xl bg-neutral-950/80 border border-neutral-800/80 text-xs text-neutral-300 space-y-1.5">
-              <p className="font-semibold text-white">سجل استخدام المهام الأخير:</p>
+              <div className="flex items-center justify-between">
+                <p className="font-semibold text-white">سجل استخدام المهام التجريبي:</p>
+                <span className="text-[10px] text-amber-400 font-mono">بيانات تجريبية</span>
+              </div>
               <div className="space-y-1 text-[11px] text-neutral-400 font-mono">
                 <div className="flex justify-between">
-                  <span>بحث ويب: أسعار الشحن 2026</span>
-                  <span>منذ 10 دقائق</span>
+                  <span>بحث ويب: استعلام تجريبي</span>
+                  <span>عنصر اختبار</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>تحليل عقد التوريد (18 صفحة)</span>
-                  <span>منذ ساعتين</span>
+                  <span>تحليل ملف افتراضي</span>
+                  <span>عنصر اختبار</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>إنشاء مسودة عرض سعر</span>
-                  <span>أمس</span>
+                  <span>معاينة مسودة تقرير</span>
+                  <span>عنصر اختبار</span>
                 </div>
               </div>
             </div>
 
             {/* Note on approval */}
-            <p className="text-[10px] text-neutral-400 leading-normal">
-              * ملاحظة: أسعار الاشتراكات وبوابات الدفع وآلية خصم الرصيد بانتظار اعتماد صاحب المشروع في المرحلة الأولى.
-            </p>
+            <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-200 leading-normal">
+              * تنبيه: لا توجد أي بوابات دفع أو تجديد اشتراك أو خصم رصيد يعمل فعلياً؛ هذا العرض مخصص لمراجعة تجربة الاستخدام فقط حتى يعتمد صاحب المشروع سياسة الرصيد والاشتراكات.
+            </div>
 
             <button
               onClick={() => setShowAccountModal(false)}

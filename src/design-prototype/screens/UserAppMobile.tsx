@@ -20,6 +20,8 @@ import {
   AlertCircle,
   FileDown,
   Sparkles,
+  AlertTriangle,
+  Smartphone,
 } from 'lucide-react';
 import { VisualTheme, TaskType } from '../types';
 import { THEME_CONFIGS } from '../themeTokens';
@@ -37,26 +39,44 @@ export const UserAppMobile: React.FC<UserAppMobileProps> = ({ theme }) => {
   const [activeTask, setActiveTask] = useState<TaskType>('web-search');
   const [showBottomSheet, setShowBottomSheet] = useState<boolean>(false);
   const [sheetContent, setSheetContent] = useState<'artifact' | 'sources' | 'files'>('sources');
+  const [mobileNotice, setMobileNotice] = useState<string | null>(null);
+
+  const showMobileNotice = (msg: string) => {
+    setMobileNotice(msg);
+    setTimeout(() => setMobileNotice(null), 3000);
+  };
 
   return (
-    <div className={`py-6 px-3 flex flex-col items-center justify-center min-h-[calc(100vh-52px)] ${cfg.bgClass}`}>
+    <div className={`py-6 px-3 flex flex-col items-center justify-center min-h-[calc(100vh-84px)] ${cfg.bgClass}`}>
       {/* Information Header on Mobile Design */}
-      <div className="max-w-md w-full mb-3 text-center">
-        <span className="text-[11px] text-neutral-400">
-          محاكي تجربة الهاتف الذكي (Mobile-First Touch Ergonomics) · دعم كامل للإبهام والـ RTL
-        </span>
+      <div className="max-w-md w-full mb-3 space-y-1.5 text-center">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-xs font-semibold">
+          <Smartphone className="w-3.5 h-3.5" />
+          <span>محاكاة واجهة هاتف — ليست تطبيقًا منشورًا أو تطبيقًا أصليًا</span>
+        </div>
+        <p className="text-[11px] text-neutral-400">
+          نموذج تجريبي لدراسة بيئة العمل بالأبعاد الرأسية (390px) وتوزيع عناصر التحكم في منطقة الإبهام (Thumb-Zone).
+        </p>
       </div>
 
       {/* Mobile Device Frame */}
       <div className={`w-full max-w-[390px] h-[780px] rounded-[44px] border-[6px] border-neutral-800 shadow-2xl overflow-hidden flex flex-col relative ${cfg.bgClass} text-neutral-100 font-sans`}>
+        {/* Floating Mobile Simulation Toast */}
+        {mobileNotice && (
+          <div className="absolute top-16 left-3 right-3 z-50 bg-neutral-900/95 border border-amber-500/50 text-amber-200 px-3 py-2 rounded-xl text-[11px] shadow-2xl flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>{mobileNotice}</span>
+          </div>
+        )}
+
         {/* Mobile Top Status Notch & App Bar */}
         <div className="bg-neutral-950/80 backdrop-blur-md pt-3 px-6 pb-2 shrink-0 border-b border-neutral-800/80">
-          {/* iOS / Android simulated status bar */}
+          {/* Simulated status bar */}
           <div className="flex items-center justify-between text-[11px] font-mono text-neutral-400 mb-2">
             <span>9:41</span>
             <div className="w-20 h-4 bg-neutral-900 rounded-full mx-auto" />
             <div className="flex items-center gap-1">
-              <span>5G</span>
+              <span className="text-[9px] text-amber-400 font-sans">محاكاة</span>
               <span>100%</span>
             </div>
           </div>
@@ -68,9 +88,12 @@ export const UserAppMobile: React.FC<UserAppMobileProps> = ({ theme }) => {
                 S
               </span>
               <span className="text-xs font-bold text-white">SULY AI</span>
+              <span className="text-[9px] px-1.5 rounded bg-amber-500/20 text-amber-300">
+                تجريبي
+              </span>
             </div>
 
-            {/* Quick Task Switcher Dropdown */}
+            {/* Quick Task Switcher Buttons */}
             <div className="flex items-center gap-1">
               <button
                 onClick={() => {
@@ -79,7 +102,7 @@ export const UserAppMobile: React.FC<UserAppMobileProps> = ({ theme }) => {
                 }}
                 className="px-2 py-1 rounded-lg bg-neutral-900 border border-neutral-800 text-[10px] text-neutral-300 flex items-center gap-1"
               >
-                <span>المصادر (3)</span>
+                <span>المصادر</span>
               </button>
               <button
                 onClick={() => {
@@ -109,7 +132,7 @@ export const UserAppMobile: React.FC<UserAppMobileProps> = ({ theme }) => {
                   }`}
                 >
                   <Search className="w-3 h-3" />
-                  <span>1. بحث الويب والمصادر</span>
+                  <span>1. بحث الويب (تجريبي)</span>
                 </button>
 
                 <button
@@ -140,9 +163,9 @@ export const UserAppMobile: React.FC<UserAppMobileProps> = ({ theme }) => {
               {/* User Question */}
               <div className="flex justify-end">
                 <div className={`p-3 rounded-2xl rounded-tr-none ${cfg.surfaceElevatedClass} border ${cfg.borderClass} max-w-[85%] text-right text-xs leading-relaxed`}>
-                  {activeTask === 'web-search' && 'ابحث عن أسعار الشحن للمتاجر في السعودية 2026 مع روابط المصادر.'}
-                  {activeTask === 'file-analysis' && 'ما هي شروط الفسخ والحد الأدنى للشحنات في العقد المرفق؟'}
-                  {activeTask === 'deliverable-gen' && 'جهز مسودة عرض السعر لمتجر الأناقة للمراجعة والتنزيل.'}
+                  {activeTask === 'web-search' && 'ابحث عن مؤشرات أسعار الشحن مع مراجع تجريبية للاختبار.'}
+                  {activeTask === 'file-analysis' && 'ما هي شروط الفسخ في العقد التجريبي المرفق؟'}
+                  {activeTask === 'deliverable-gen' && 'اعرض مسودة تقرير تجريبي جاهزة للمعاينة.'}
                 </div>
               </div>
 
@@ -151,14 +174,14 @@ export const UserAppMobile: React.FC<UserAppMobileProps> = ({ theme }) => {
                 <div className="flex items-center justify-between text-[11px] text-neutral-400">
                   <span className="flex items-center gap-1 text-emerald-400 font-semibold">
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>تم التحقق من المصادر</span>
+                    <span>خطوة محاكاة الوكيل</span>
                   </span>
-                  <span className="font-mono text-[10px]">Gemini 3.8 Flash</span>
+                  <span className="text-[10px] text-amber-300 font-mono">بيانات تجريبية</span>
                 </div>
                 <p className="text-[11px] text-neutral-300">
-                  {activeTask === 'web-search' && 'تم جمع البيانات ومقارنة أسعار 3 شركات لوجستية.'}
-                  {activeTask === 'file-analysis' && 'تمت مطابقة بند 8.2 وبند 12.1 في الصفحة 4 و7.'}
-                  {activeTask === 'deliverable-gen' && 'المسودة جاهزة بتنسيق رسمي ومرفق جدول الأسعار.'}
+                  {activeTask === 'web-search' && 'تم جمع المراجع التجريبية على نطاق .example.'}
+                  {activeTask === 'file-analysis' && 'تم استخراج بنود المستند الافتراضي بدقة.'}
+                  {activeTask === 'deliverable-gen' && 'المسودة النموذجية جاهزة للمعاينة بالهاتف.'}
                 </p>
               </div>
 
@@ -166,17 +189,19 @@ export const UserAppMobile: React.FC<UserAppMobileProps> = ({ theme }) => {
               <div className={`p-3.5 rounded-2xl rounded-tl-none ${cfg.surfaceClass} border ${cfg.borderClass} text-xs space-y-2.5 text-right leading-relaxed`}>
                 {activeTask === 'web-search' && (
                   <>
-                    <p className="text-white font-semibold">
-                      ملخص أسعار الشحن الداخلي (2026):
+                    <div className="flex items-center justify-between">
+                      <p className="text-white font-semibold">
+                        ملخص مؤشرات الشحن (بيانات تجريبية):
+                      </p>
+                      <span className="text-[9px] px-1.5 rounded bg-amber-500/15 text-amber-300">
+                        للتصميم فقط
+                      </span>
+                    </div>
+                    <p className="text-neutral-300 text-[11px]">
+                      - فئة أ (تقدير افتراضي): أرقام توضيحية للاختبار [1].
                     </p>
                     <p className="text-neutral-300 text-[11px]">
-                      - الشركات الناشئة: <strong>18 - 24 ريالاً</strong> للشحنة [1].
-                    </p>
-                    <p className="text-neutral-300 text-[11px]">
-                      - الشركات الكبرى: <strong>26 - 34 ريالاً</strong> مع توصيل بنفس اليوم [2].
-                    </p>
-                    <p className="text-neutral-300 text-[11px]">
-                      - رسوم الدفع عند الاستلام: <strong>5 - 8 ريالات</strong> [3].
+                      - فئة ب (تقدير افتراضي): أرقام توضيحية للاختبار [2].
                     </p>
 
                     <button
@@ -187,7 +212,7 @@ export const UserAppMobile: React.FC<UserAppMobileProps> = ({ theme }) => {
                       className={`w-full py-2 px-3 rounded-xl bg-neutral-900 border border-neutral-800 ${cfg.accentTextClass} font-medium text-[11px] flex items-center justify-center gap-1.5`}
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
-                      <span>عرض بطاقات المصادر وروابط التحقق (3)</span>
+                      <span>عرض بطاقات المصادر التجريبية (.example)</span>
                     </button>
                   </>
                 )}
@@ -195,15 +220,11 @@ export const UserAppMobile: React.FC<UserAppMobileProps> = ({ theme }) => {
                 {activeTask === 'file-analysis' && (
                   <>
                     <p className="text-white font-semibold">
-                      شروط العقد المستخلصة:
+                      شروط المستند التجريبي:
                     </p>
                     <div className="p-2 rounded-lg bg-neutral-950/60 border border-neutral-800/80 text-[11px] text-neutral-300">
-                      <span className={`font-semibold block ${cfg.accentTextClass}`}>📌 ص 4 · بند 8.2:</span>
-                      "السداد شهرياً خلال 10 أيام عمل عبر تحويل بنكي."
-                    </div>
-                    <div className="p-2 rounded-lg bg-neutral-950/60 border border-neutral-800/80 text-[11px] text-neutral-300">
-                      <span className={`font-semibold block ${cfg.accentTextClass}`}>📌 ص 7 · بند 12.1:</span>
-                      "إنهاء الاتفاقية بإخطار خطي مدته 30 يوماً."
+                      <span className={`font-semibold block ${cfg.accentTextClass}`}>📌 ص 4 · بند افتراضي 8.2:</span>
+                      "السداد شهرياً خلال 10 أيام عمل عبر تحويل بنكي (نص افتراضي للتصميم)."
                     </div>
                   </>
                 )}
@@ -211,10 +232,10 @@ export const UserAppMobile: React.FC<UserAppMobileProps> = ({ theme }) => {
                 {activeTask === 'deliverable-gen' && (
                   <>
                     <p className="text-white font-semibold">
-                      تم إنشاء المستند: مسودة عرض سعر
+                      المخرج التجريبي: مسودة عرض خدمات
                     </p>
                     <p className="text-[11px] text-neutral-400">
-                      840 كلمة · 3 دقائق قراءة · متوافق مع معايير الطباعة A4.
+                      مستند افتراضي للمعاينة والتنسيق على شاشة الجوال.
                     </p>
                     <button
                       onClick={() => {
@@ -224,7 +245,7 @@ export const UserAppMobile: React.FC<UserAppMobileProps> = ({ theme }) => {
                       className={`w-full py-2.5 px-3 rounded-xl ${cfg.buttonPrimaryClass} font-medium text-xs flex items-center justify-center gap-1.5`}
                     >
                       <FileDown className="w-4 h-4" />
-                      <span>معاينة وتنزيل المخرج (PDF / Word)</span>
+                      <span>معاينة المخرج (محاكاة تنزيل)</span>
                     </button>
                   </>
                 )}
@@ -235,12 +256,15 @@ export const UserAppMobile: React.FC<UserAppMobileProps> = ({ theme }) => {
           {/* Tasks Tab */}
           {activeTab === 'tasks' && (
             <div className="space-y-3 text-right">
-              <h3 className="text-xs font-bold text-white">سجل المهام النشطة</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-white">سجل المهام (بيانات تجريبية)</h3>
+                <span className="text-[9px] text-amber-300">محاكاة واجهة</span>
+              </div>
               <div className="space-y-2">
                 {[
-                  { title: 'بحث ويب: أسعار الشحن 2026', time: 'منذ 10 دقائق', status: 'مكتمل' },
-                  { title: 'تحليل عقد التوريد والشحن', time: 'منذ ساعتين', status: 'مكتمل' },
-                  { title: 'مسودة عرض الخدمات اللوجستية', time: 'أمس', status: 'جاهز للتنزيل' },
+                  { title: 'بحث ويب: استعلام تجريبي', time: 'عنصر اختبار', status: 'مكتمل بالعرض' },
+                  { title: 'تحليل مستند افتراضي', time: 'عنصر اختبار', status: 'مكتمل بالعرض' },
+                  { title: 'مسودة تقرير تجريبي', time: 'عنصر اختبار', status: 'جاهز للمعاينة' },
                 ].map((t, i) => (
                   <div key={i} className={`p-3 rounded-xl ${cfg.surfaceClass} border ${cfg.borderClass} flex items-center justify-between`}>
                     <ChevronLeft className="w-4 h-4 text-neutral-500" />
@@ -258,13 +282,16 @@ export const UserAppMobile: React.FC<UserAppMobileProps> = ({ theme }) => {
           {activeTab === 'files' && (
             <div className="space-y-3 text-right">
               <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold text-white">ملفات المشروع</h3>
+                <div>
+                  <h3 className="text-xs font-bold text-white">ملفات المشروع (عناصر اختبار)</h3>
+                  <p className="text-[10px] text-neutral-400">الحد الأقصى للملف سيُحدد لاحقاً</p>
+                </div>
                 <button
-                  onClick={() => alert('محاكاة اختيار ملف من الهاتف')}
+                  onClick={() => showMobileNotice('محاكاة واجهة: تم النقر على رفع ملف — لا يتم الوصول لملفات الهاتف الفعلية.')}
                   className="text-[11px] text-blue-400 flex items-center gap-1"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>رفع ملف</span>
+                  <span>رفع ملف (محاكاة)</span>
                 </button>
               </div>
 
@@ -272,7 +299,7 @@ export const UserAppMobile: React.FC<UserAppMobileProps> = ({ theme }) => {
                 {MOCK_GROUNDED_DOCS.map((doc) => (
                   <div key={doc.id} className={`p-3 rounded-xl ${cfg.surfaceClass} border ${cfg.borderClass} space-y-1`}>
                     <p className="text-xs font-bold text-neutral-200 truncate">{doc.name}</p>
-                    <p className="text-[10px] text-neutral-400">{doc.size} · {doc.pagesOrRows} · {doc.uploadedAt}</p>
+                    <p className="text-[10px] text-neutral-400">{doc.pagesOrRows} · {doc.uploadedAt}</p>
                     <button
                       onClick={() => {
                         setActiveTab('chat');
@@ -280,7 +307,7 @@ export const UserAppMobile: React.FC<UserAppMobileProps> = ({ theme }) => {
                       }}
                       className="text-[11px] text-blue-400 pt-1 block"
                     >
-                      طرح سؤال على هذا الملف ←
+                      طرح سؤال على هذا الملف (محاكاة) ←
                     </button>
                   </div>
                 ))}
@@ -291,20 +318,24 @@ export const UserAppMobile: React.FC<UserAppMobileProps> = ({ theme }) => {
           {/* Account Tab */}
           {activeTab === 'account' && (
             <div className="space-y-3 text-right">
-              <h3 className="text-xs font-bold text-white">حسابي والرصيد</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-white">حسابي والرصيد (واجهة تجريبية)</h3>
+                <span className="text-[9px] text-amber-300">للتصميم فقط</span>
+              </div>
               <div className={`p-3.5 rounded-xl ${cfg.surfaceClass} border ${cfg.borderClass} space-y-2`}>
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-xs font-bold text-neutral-200">
-                    ع.م
+                    تجريبي
                   </div>
                   <div>
-                    <p className="text-xs font-bold text-white">عبدالله بن سعد</p>
-                    <p className="text-[10px] text-neutral-400">متجر إلكتروني · باقة رواد الأعمال</p>
+                    <p className="text-xs font-bold text-white">مستخدم تجريبي 01</p>
+                    <p className="text-[10px] text-neutral-400">الخطة غير محددة · موعد التجديد غير محدد</p>
                   </div>
                 </div>
-                <div className="p-2.5 rounded-lg bg-neutral-950/60 border border-neutral-800 flex justify-between items-center">
-                  <span className="text-xs text-neutral-300">الرصيد المتبقي:</span>
-                  <span className="text-sm font-bold text-emerald-400 font-mono">75 / 100 مهمة</span>
+                <div className="p-2.5 rounded-lg bg-neutral-950/60 border border-neutral-800 space-y-1">
+                  <span className="text-xs text-neutral-300 block">رصيد العمليات:</span>
+                  <span className="text-xs font-bold text-amber-300">لم تُعتمد قواعد الرصيد بعد</span>
+                  <p className="text-[10px] text-neutral-500">حقل افتراضي لتوضيح تخطيط شاشة الهاتف فقط</p>
                 </div>
               </div>
             </div>
@@ -320,7 +351,7 @@ export const UserAppMobile: React.FC<UserAppMobileProps> = ({ theme }) => {
 
               <div className="flex items-center justify-between pb-2 border-b border-neutral-800 mb-3">
                 <span className="text-xs font-bold text-white">
-                  {sheetContent === 'sources' ? 'المصادر والروابط الموثقة' : 'معاينة المخرج والتنزيل'}
+                  {sheetContent === 'sources' ? 'المصادر التجريبية (.example)' : 'معاينة المخرج (محاكاة تنزيل)'}
                 </span>
                 <button
                   onClick={() => setShowBottomSheet(false)}
@@ -333,16 +364,25 @@ export const UserAppMobile: React.FC<UserAppMobileProps> = ({ theme }) => {
               {/* Sheet Body */}
               <div className="overflow-y-auto space-y-2.5 flex-1 pr-1 text-right text-xs">
                 {sheetContent === 'sources' ? (
-                  MOCK_SEARCH_SOURCES.map((s) => (
-                    <div key={s.id} className="p-2.5 rounded-xl bg-neutral-900/80 border border-neutral-800 space-y-1">
-                      <div className="flex justify-between items-center text-[10px] text-neutral-400 font-mono">
-                        <span>[{s.id}] {s.domain}</span>
-                        <span className="text-emerald-400">{s.reliability}</span>
+                  <>
+                    <p className="text-[10px] text-amber-300 bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
+                      تنبيه: جميع الروابط المعروضة أدناه مراجع اختبارية على نطاق .example غير قابلة للفتح كروابط فعلية ولا تثبت أي معلومة.
+                    </p>
+                    {MOCK_SEARCH_SOURCES.map((s) => (
+                      <div
+                        key={s.id}
+                        onClick={() => showMobileNotice('رابط تجريبي للاختبار — لا يثبت أي معلومة.')}
+                        className="p-2.5 rounded-xl bg-neutral-900/80 border border-neutral-800 space-y-1 cursor-pointer"
+                      >
+                        <div className="flex justify-between items-center text-[10px] text-neutral-400 font-mono">
+                          <span>[{s.id}] {s.domain}</span>
+                          <span className="text-amber-400">{s.reliabilityLabel}</span>
+                        </div>
+                        <p className="font-semibold text-neutral-200">{s.title}</p>
+                        <p className="text-[11px] text-neutral-400">{s.snippet}</p>
                       </div>
-                      <p className="font-semibold text-neutral-200">{s.title}</p>
-                      <p className="text-[11px] text-neutral-400">{s.snippet}</p>
-                    </div>
-                  ))
+                    ))}
+                  </>
                 ) : (
                   <div className="space-y-3">
                     <div className="bg-white text-neutral-900 p-4 rounded-xl text-xs space-y-2 border border-neutral-300">
@@ -353,18 +393,18 @@ export const UserAppMobile: React.FC<UserAppMobileProps> = ({ theme }) => {
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <button
-                        onClick={() => alert('تم تنزيل PDF على الهاتف')}
+                        onClick={() => showMobileNotice('محاكاة واجهة: تم النقر على تنزيل PDF — لم يتم تنزيل ملف فعلي.')}
                         className={`py-2 rounded-xl ${cfg.buttonPrimaryClass} text-xs font-medium flex items-center justify-center gap-1`}
                       >
                         <Download className="w-3.5 h-3.5" />
-                        <span>تنزيل PDF</span>
+                        <span>تنزيل PDF (محاكاة)</span>
                       </button>
                       <button
-                        onClick={() => alert('تم تنزيل Word على الهاتف')}
+                        onClick={() => showMobileNotice('محاكاة واجهة: تم النقر على تنزيل Word — لم يتم تنزيل ملف فعلي.')}
                         className="py-2 rounded-xl bg-neutral-800 text-white text-xs font-medium flex items-center justify-center gap-1"
                       >
                         <Download className="w-3.5 h-3.5" />
-                        <span>تنزيل Word</span>
+                        <span>تنزيل Word (محاكاة)</span>
                       </button>
                     </div>
                   </div>
@@ -379,7 +419,7 @@ export const UserAppMobile: React.FC<UserAppMobileProps> = ({ theme }) => {
           <div className="absolute bottom-16 left-0 right-0 p-2.5 bg-neutral-950/90 backdrop-blur-md border-t border-neutral-800/80">
             <div className={`flex items-center gap-2 p-1.5 rounded-2xl ${cfg.surfaceClass} border ${cfg.borderClass}`}>
               <button
-                onClick={() => alert('محاكاة رفع ملف من الهاتف')}
+                onClick={() => showMobileNotice('محاكاة واجهة: تم النقر على زر المرفق — لا يتم الوصول لملفات الهاتف.')}
                 className="w-9 h-9 rounded-xl flex items-center justify-center text-neutral-400 hover:text-white shrink-0"
               >
                 <Paperclip className="w-4 h-4" />
@@ -390,6 +430,7 @@ export const UserAppMobile: React.FC<UserAppMobileProps> = ({ theme }) => {
                 className="flex-1 bg-transparent text-xs text-white placeholder-neutral-500 focus:outline-none px-1"
               />
               <button
+                onClick={() => showMobileNotice('محاكاة واجهة: تشغيل معالجة الطلب التجريبي.')}
                 className={`w-9 h-9 rounded-xl ${cfg.buttonPrimaryClass} flex items-center justify-center shrink-0`}
               >
                 <Send className="w-3.5 h-3.5 transform -scale-x-100" />

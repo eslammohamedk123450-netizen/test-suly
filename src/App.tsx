@@ -1,36 +1,64 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PrototypeApp } from './design-prototype/PrototypeApp';
 import OriginalApp from './OriginalApp';
-import { Sparkles, ArrowRight, Layers } from 'lucide-react';
+import { Layers, ArrowLeft, Sparkles, ExternalLink } from 'lucide-react';
 
 export default function App() {
-  const [appMode, setAppMode] = useState<'prototype' | 'original'>('prototype');
+  // Check whether current URL is on /design-prototype or #design-prototype
+  const isPrototypeRoute = () => {
+    if (typeof window === 'undefined') return false;
+    const pathname = window.location.pathname.toLowerCase();
+    const hash = window.location.hash.toLowerCase();
+    return pathname.includes('design-prototype') || hash.includes('design-prototype');
+  };
 
-  if (appMode === 'original') {
-    return (
-      <div className="relative min-h-screen">
-        {/* Banner to switch back to Phase 1 Design Showcase */}
-        <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-neutral-900 text-white text-xs px-4 py-2 flex items-center justify-between border-b border-blue-500/30 sticky top-0 z-50 shadow-md">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-            <span className="font-semibold">أنت الآن في وضع "الواجهة البرمجية الحالية (الكود الأصلي)"</span>
-            <span className="hidden sm:inline text-neutral-300">· لم يتم تعديل أو حذف أي ميزة سابقة</span>
-          </div>
-          <button
-            onClick={() => setAppMode('prototype')}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs transition-colors shadow"
-          >
-            <Layers className="w-3.5 h-3.5" />
-            <span>العودة لنموذج المرحلة 1 (التصميم والواجهات)</span>
-          </button>
-        </div>
+  const [isPrototype, setIsPrototype] = useState<boolean>(isPrototypeRoute);
 
-        {/* The untouched original application */}
-        <OriginalApp />
-      </div>
-    );
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setIsPrototype(isPrototypeRoute());
+    };
+
+    window.addEventListener('popstate', handleLocationChange);
+    window.addEventListener('hashchange', handleLocationChange);
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+      window.removeEventListener('hashchange', handleLocationChange);
+    };
+  }, []);
+
+  const navigateToPrototype = () => {
+    window.history.pushState({}, '', '#design-prototype');
+    setIsPrototype(true);
+  };
+
+  const navigateToOriginal = () => {
+    window.history.pushState({}, '', window.location.pathname);
+    setIsPrototype(false);
+  };
+
+  if (isPrototype) {
+    return <PrototypeApp onSwitchToOriginalApp={navigateToOriginal} />;
   }
 
-  // Phase 1 Design Prototype View (Default)
-  return <PrototypeApp onSwitchToOriginalApp={() => setAppMode('original')} />;
+  // Default: Original untouched SULY AI Platform
+  return (
+    <div className="relative min-h-screen">
+      {/* Unobtrusive Floating Link to Phase 1 Design Prototype */}
+      <div className="fixed bottom-4 left-4 z-50">
+        <button
+          onClick={navigateToPrototype}
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-neutral-900/95 hover:bg-neutral-800 text-neutral-200 hover:text-white border border-neutral-700/80 shadow-2xl backdrop-blur-md text-xs font-medium transition-all group hover:scale-[1.02]"
+          title="استعراض نموذج المرحلة 1 لتصميم الواجهات وتجربة الاستخدام"
+        >
+          <Layers className="w-4 h-4 text-blue-400 group-hover:text-blue-300 transition-colors" />
+          <span>استعراض نموذج تصميم المرحلة الأولى (تصور واجهات فقط)</span>
+          <ArrowLeft className="w-3.5 h-3.5 text-neutral-400 group-hover:text-white transition-colors" />
+        </button>
+      </div>
+
+      {/* Untouched Original Application */}
+      <OriginalApp />
+    </div>
+  );
 }
